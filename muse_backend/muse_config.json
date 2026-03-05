@@ -1,0 +1,53 @@
+{
+  "_comment": "Muse Agent Backend Configuration. Edit this file to customize paths and active providers.",
+
+  "models_path": "models",
+
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8000,
+    "reload": true,
+    "log_level": "info"
+  },
+
+  "outputs_path": "muse-studio/outputs",
+
+  "providers": {
+    "image_draft": "flux_klein",
+    "image_draft_alt": "qwen",
+    "image_refine": "zimage_turbo",
+    "llm": "openai",
+    "video_default": "ltx2"
+  },
+
+  "model_formats": {
+    "_comment": "Supported formats: bf16, fp16, fp8, fp4, gguf. See models/README.md for which formats each model supports.",
+    "qwen-image-edit": "bf16",
+    "flux-klein": "bf16",
+    "zimage-turbo": "bf16",
+    "wan2.2": "gguf",
+    "ltx2": "bf16"
+  },
+
+  "inference": {
+    "_comment": "flux_klein_offload: 'none' (full GPU, fastest) | 'model' (saves ~15 GB VRAM) | 'sequential' (minimum VRAM, slowest)",
+    "flux_klein_offload": "none"
+  },
+
+  "generation": {
+    "image": {
+      "default_aspect_ratio": "16:9",
+      "default_denoise_strength": 1.00,
+      "max_reference_images": 5
+    },
+    "video": {
+      "default_duration_seconds": 5,
+      "default_fps": 24
+    },
+    "llm": {
+      "max_tokens": 182048,
+      "temperature": 0.8,
+      "stream": true
+    }
+  }
+}

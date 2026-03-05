@@ -1,0 +1,16 @@
+
+
+# Terminal 1 — Python backend
+cd muse_backend
+
+# For Lunix
+.\.venv\Scripts\Activate.ps1
+# For Windows
+.venv\Scripts\activate  or .venv\Scripts\activate.bat
+
+uvicorn app.main:app --reload --port 8000
+
+
+# Terminal 2 — Next.js frontend
+cd muse-studio
+npm run dev

@@ -1,0 +1,19 @@
+# Python secrets
+muse_backend/.env
+
+# Frontend env (local overrides)
+muse-studio/.env.local
+
+# Node
+muse-studio/node_modules/
+muse-studio/.next/
+
+# Local / development
+.cursor/
+*.log
+backups/
+enhancement logs/
+
+# OS
+.DS_Store
+Thumbs.db

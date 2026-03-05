@@ -1,0 +1,79 @@
+# Muse Backend — Python Dependencies
+# Install order matters — see README.md for full setup instructions.
+
+# ── Web framework ──────────────────────────────────────────────────────────────
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9       # File uploads
+httpx>=0.27.0                  # Async HTTP client (API providers)
+websockets>=12.0               # ComfyUI WebSocket listener
+
+# ── Config & validation ────────────────────────────────────────────────────────
+pydantic>=2.8.0
+pydantic-settings>=2.4.0
+python-dotenv>=1.0.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+aiofiles>=24.1.0               # Async file I/O
+
+# ── Story Muse — OpenAI LLM provider ─────────────────────────────────────────
+openai>=1.40.0
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AI / ML — install these AFTER activating .venv, following the steps below.
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Step 1: PyTorch with CUDA (REQUIRED — do NOT use plain pip install torch) ─
+#
+#   CUDA 12.8 (RTX 50xx Blackwell / RTX PRO):
+#     pip install torch==2.8.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+#
+#   CUDA 12.1 (RTX 30xx / 40xx Ada):
+#     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+#
+# Installing torch from PyPI (without --index-url) gives a CPU-only build.
+# The ltx-core package will try to install torch as a dependency — always
+# reinstall with the correct CUDA index URL afterwards if that happens.
+
+# ── Step 2: Core ML libraries ─────────────────────────────────────────────────
+transformers>=4.45.0           # Gemma 3 text encoder, model loading
+diffusers>=0.33.0              # All local image/video pipelines (replaces ltx_pipelines)
+accelerate>=0.33.0             # device_map="auto", CPU offload, multi-GPU
+safetensors>=0.4.3             # Load .safetensors weight files
+Pillow>=10.4.0                 # Image I/O
+
+# ── Step 3: LTX-Video 2 specific ─────────────────────────────────────────────
+# ltx-core provides the spatial upsampler model used in the two-stage 1080p
+# pipeline. Do NOT install ltx-pipelines — it forces a CPU-only torch build.
+#
+#   pip install git+https://github.com/Lightricks/LTX-2.git#subdirectory=packages/ltx-core
+#
+# Already installed. Listed here for documentation / fresh environment setup.
+# ltx-core==1.0.0  (from GitHub)
+
+# ── Step 4: GGUF model loading (llama-cpp-python with CUDA) ──────────────────
+# Required for GGUF diffusion models (LTX-2 Q4_K_M, FLUX.2-klein GGUF, etc.)
+# Must be compiled with CUDA support — plain pip install does NOT have GPU support.
+#
+#   Windows (PowerShell):
+#     $env:CMAKE_ARGS = "-DGGML_CUDA=on"
+#     pip install llama-cpp-python --no-cache-dir
+#
+#   Linux/Mac:
+#     CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --no-cache-dir
+#
+# llama-cpp-python>=0.2.90
+
+# ── Step 5: Additional model libraries ────────────────────────────────────────
+gguf>=0.10.0                   # GGUF file loading for LTX-Video 2 GGUF diffusion models
+# bitsandbytes>=0.43.0         # FP8/INT8 quantization (load_in_8bit=True)
+# qwen-vl-utils>=0.0.8         # Qwen2-VL vision utilities (Visual Muse)
+# wan                          # Wan 2.2 official package: pip install wan
+
+# ── Step 6: Video encoding ────────────────────────────────────────────────────
+# av>=12.0.0                   # PyAV — video encode/decode (used by ltx-core)
+imageio>=2.37.0                # Video export — required by diffusers export_to_video
+imageio-ffmpeg>=0.5.0          # FFmpeg backend for imageio (bundles a static ffmpeg binary)
+
+# ── Cloud API providers (optional) ───────────────────────────────────────────
+# runwayml>=1.0.0              # Runway Gen-3/4 Python SDK
