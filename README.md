@@ -1,4 +1,4 @@
-# Muse Agent — Development Environment Setup
+# Muse Studio 
 
 Complete setup guide for both the **Next.js frontend** (`muse-studio`) and the
 **Python AI inference backend** (`muse_backend`).
@@ -59,9 +59,9 @@ Verify:
 python --version
 ```
 
-### NVIDIA GPU + CUDA Toolkit
+### NVIDIA GPU + CUDA Toolkit (recommended)
 
-Required for local AI model inference.
+Recommended for GPU‑accelerated features. Most flows will still run on CPU but more slowly.
 
 | Platform | Install |
 |---|---|
@@ -84,19 +84,71 @@ nvidia-smi
 
 ## 2. Clone / Open the Project
 
-```
+```bash
 git clone https://github.com/benjiyaya/Muse-Studio.git
+cd Muse-Studio
 ```
 
 Project layout:
 ```
-/                     ← repo / project root
-├── muse-studio/            ← Next.js frontend
-├── muse_backend/           ← Python FastAPI backend
-└── README.md               ← This file
+/                         ← repo / project root
+├── muse-studio/          ← Next.js frontend
+├── muse_backend/         ← Python FastAPI backend
+└── README.md             ← This file
 ```
 
 Image and video generation run through **ComfyUI**; no local model folder is required in this repo.
+
+---
+
+## 2.1 Quick Start (TL;DR)
+
+1. **Clone & install**
+   - Backend:
+     ```bash
+     cd muse_backend
+     python -m venv .venv
+     # Activate venv (see OS-specific commands below)
+     pip install -r requirements.txt
+     cp .env.example .env  # or use Copy-Item on Windows
+     ```
+   - Frontend:
+     ```bash
+     cd ../muse-studio
+     npm install
+     # If .env.local.example exists:
+     #   cp .env.local.example .env.local
+     # Else create .env.local and set:
+     #   MUSE_BACKEND_URL=http://localhost:8000
+     ```
+
+2. **Configure keys**
+   - Edit `muse_backend/.env`:
+     - `OPENAI_API_KEY` (Story Muse)
+     - `HF_TOKEN` (for gated HuggingFace models, if you use them)
+     - Optional video APIs: `KLING_API_KEY`, `SEEDDANCE_API_KEY`, `RUNWAY_API_KEY`.
+
+3. **Start services**
+   - Backend:
+     ```bash
+     cd muse_backend
+     # activate .venv
+     python run.py
+     ```
+     Backend: `http://localhost:8000`
+   - Frontend:
+     ```bash
+     cd muse-studio
+     npm run dev
+     ```
+     Frontend: `http://localhost:3000`
+
+4. **Run ComfyUI**
+   - Start your ComfyUI server (local or remote).
+   - In the app UI (`/settings` → **ComfyUI**), set the **ComfyUI base URL** and register one or more workflows.
+
+5. **Create a project**
+   - Open `http://localhost:3000`, create a new project, pick a **Muse Control Level** (Observer / Assistant / Collaborator), then add scenes and generate images / video via your ComfyUI workflows.
 
 ---
 
@@ -480,7 +532,41 @@ Frontend starts at **http://localhost:3000**
 
 ---
 
-## 7. Verify Everything Works
+## 7. Using Muse Agent (UI Overview)
+
+Once both backend and frontend are running and ComfyUI is configured:
+
+- **Create a project**
+  - Go to `http://localhost:3000`.
+  - Click **New Project** and enter:
+    - **Title** and optional **Description**.
+    - **Muse Control Level**:
+      - **Observer** – light, occasional suggestions.
+      - **Assistant** – balanced help (default).
+      - **Collaborator** – very proactive suggestions.
+
+- **Storyline and scenes**
+  - Define your **storyline** for the project.
+  - Add **scenes** on the kanban board; Muse can suggest improvements based on your control level.
+
+- **Characters**
+  - Use the **Characters** panel to define key characters.
+  - Optionally generate character sheet images via ComfyUI workflows when available.
+
+- **ComfyUI workflows (image & video)**
+  - In **Settings → ComfyUI**, register one or more workflows from your ComfyUI instance.
+  - On the kanban board, assign:
+    - An **image workflow** per scene for stills.
+    - A **video workflow** per scene for motion.
+  - Use the **Generate with ComfyUI** dialogs on scenes or character sheets to run those workflows, then review results.
+
+- **Muse suggestions**
+  - As you confirm storylines, edit scenes, and complete video jobs, Muse surfaces suggestions in the UI.
+  - You can adjust the project’s Muse Control Level later from the project header if you want more or fewer suggestions.
+
+---
+
+## 8. Verify Everything Works
 
 ### Check backend health
 
@@ -527,7 +613,7 @@ python -c "from ltx_core.model.upsampler import upsample_video; print('ltx_core 
 
 ---
 
-## 8. Quick Command Reference
+## 9. Quick Command Reference
 
 | Task | Windows CMD | Windows PowerShell | Linux / macOS |
 |---|---|---|---|
@@ -542,7 +628,7 @@ python -c "from ltx_core.model.upsampler import upsample_video; print('ltx_core 
 
 ---
 
-## 9. Upgrading PyTorch
+## 10. Upgrading PyTorch
 
 When a new PyTorch version is released, upgrade with the same CUDA index URL.
 Do **not** use plain `pip install torch --upgrade` — that installs a CPU build.
@@ -561,7 +647,7 @@ python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 
 ---
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 ### `CUDA available: False` after install
 
@@ -672,7 +758,7 @@ lsof -ti:8000 | xargs kill -9
 
 ---
 
-## 11. Publishing on GitHub
+## 12. Publishing on GitHub
 
 To publish this app on GitHub:
 
@@ -696,3 +782,4 @@ To publish this app on GitHub:
 4. **Optional:** Add a repository description, topics (e.g. `nextjs`, `fastapi`, `comfyui`, `ai`), and a link to this README in the repo “About” section.
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE).
+#
