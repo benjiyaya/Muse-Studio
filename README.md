@@ -1,7 +1,13 @@
-# Muse Studio 
+# Muse Studio — AI Story & Video Workspace
 
-Complete setup guide for both the **Next.js frontend** (`muse-studio`) and the
-**Python AI inference backend** (`muse_backend`).
+Muse Studio is a local-first workspace for planning, visualizing, and iterating on stories and video concepts.
+It combines:
+
+- A **frontend** (`muse-studio`) with kanban-style scenes, characters, and “Muse” suggestions.
+- A **Python FastAPI backend** (`muse_backend`) that orchestrates LLMs and video/image providers.
+- Tight integration with **ComfyUI** for image and video generation via your own workflows.
+
+This README focuses on **installation, configuration, and day‑to‑day usage** of the frontend + backend stack on your machine.
 
 ---
 
@@ -311,113 +317,7 @@ GPU: NVIDIA RTX PRO 6000 Blackwell Workstation Edition
 
 ---
 
-### 4.4 Install ML dependencies
-
-```
-pip install transformers>=4.45.0 diffusers>=0.33.0 accelerate>=0.33.0 safetensors>=0.4.3 Pillow>=10.4.0
-```
-
----
-
-### 4.5 Install LTX-Video 2 core
-
-Required for the LTX-Video 2 spatial upsampler (two-stage 1080p pipeline).
-
-```
-pip install git+https://github.com/Lightricks/LTX-2.git#subdirectory=packages/ltx-core
-```
-
-> After this installs, verify PyTorch still has CUDA (ltx-core can sometimes pull
-> in a CPU torch as a dependency). Re-run the install from Step 4.3 if needed.
-
----
-
-### 4.6 Install GGUF support (optional)
-
-Required only if you want to run GGUF-format models (LTX-2 Q4_K_M, FLUX.2-klein GGUF, etc.).
-`llama-cpp-python` compiles a C++ extension — a C++ compiler is required.
-
----
-
-#### Windows — Step A: Install Visual Studio Build Tools (one-time, free)
-
-`llama-cpp-python` needs `nmake` and `cl.exe` from Microsoft's free Build Tools.
-You will see the error `nmake not found / CMAKE_C_COMPILER not set` if these are missing.
-
-**Option 1 — Already have Visual Studio (full IDE):**
-
-If Visual Studio 2019/2022 is installed, the compiler is already there.
-You just need to launch the right terminal — skip to **Step B** and use the
-**Developer Command Prompt** instead of regular CMD.
-
-**Option 2 — Install Visual Studio Build Tools only (free, ~3 GB):**
-
-Open **CMD or PowerShell as Administrator**, then run:
-
-```cmd
-winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
-```
-
-Or download manually from: https://visualstudio.microsoft.com/visual-cpp-build-tools/
-and select **"Desktop development with C++"** during install.
-
----
-
-#### Windows — Step B: Install llama-cpp-python with CUDA
-
-The compiler must be on your PATH. The easiest way is the **Developer Command Prompt**,
-which is pre-configured with all VS compiler tools.
-
-1. Open the **Start menu** and search for:
-   `Developer Command Prompt for VS 2022`
-   (or VS 2019 if that's your version) — click it.
-
-2. In that window, navigate to your project and install:
-
-```cmd
-cd path\to\v3_src\muse_backend
-.venv\Scripts\activate.bat
-set CMAKE_ARGS=-DGGML_CUDA=on
-set FORCE_CMAKE=1
-pip install llama-cpp-python --no-cache-dir
-```
-
-> The build takes 5–15 minutes — CMake output scrolling is normal.
-
-If you prefer PowerShell, search for **"Developer PowerShell for VS 2022"** in the Start menu instead, then:
-
-```powershell
-cd path\to\v3_src\muse_backend
-.\.venv\Scripts\Activate.ps1
-$env:CMAKE_ARGS = "-DGGML_CUDA=on"
-$env:FORCE_CMAKE = "1"
-pip install llama-cpp-python --no-cache-dir
-```
-
----
-
-#### Linux / macOS
-
-Install the compiler first if not present:
-
-```bash
-# Ubuntu / Debian
-sudo apt install cmake g++ build-essential
-
-# macOS
-xcode-select --install
-```
-
-Then build with CUDA:
-
-```bash
-source .venv/bin/activate
-CMAKE_ARGS="-DGGML_CUDA=on" FORCE_CMAKE=1 pip install llama-cpp-python --no-cache-dir
-```
-
----
-
-### 4.7 Install remaining dependencies
+### 4.4 Install remaining dependencies
 
 ```
 pip install -r requirements.txt
@@ -466,12 +366,17 @@ RUNWAY_API_KEY=
 
 ## 5. ComfyUI — Image & Video Generation
 
-Image and video generation are handled by **ComfyUI**. Run ComfyUI separately and configure the app to use it:
+Image and video generation are handled by **ComfyUI**. Run ComfyUI separately and integrate its workflows into Muse Studio:
 
-- In **muse-studio**, register ComfyUI workflows in **Settings → ComfyUI** (workflow URL and any auth).
-- Scenes use ComfyUI workflows for scene images and video; assign workflows per scene from the kanban board.
+- In ComfyUI, rename your input and output nodes so their titles end with (Input) or (Output) — Muse uses these suffixes to detect dynamic inputs and output.
+- In **ComfyUI**, open your workflow and **export it as API JSON** (or copy the JSON from the workflow editor).
+- In **Muse Studio**, go to **Settings → ComfyUI → Add workflow** and paste the ComfyUI JSON.
+  - Give the workflow a clear name, choose its **kind** (image or video), and save it.
+- Your saved workflows now appear in the **Muse workflow library** and can be:
+  - Assigned per scene on the kanban board (image / video workflow fields).
+  - Used from “Generate with ComfyUI” dialogs for scenes and character sheets.
 
-You do **not** need a `models/` folder in this repo — model weights and pipelines live in your ComfyUI installation.
+You do **not** need a `models/` folder in this repo — model weights and pipelines live entirely in your ComfyUI installation.
 
 ---
 
