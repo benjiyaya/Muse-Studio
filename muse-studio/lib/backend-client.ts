@@ -220,6 +220,79 @@ export const backendClient = {
   },
 
   /**
+   * Agent: Get AI-powered suggestions for a project.
+   * Sends full project JSON to backend; returns suggestions or error.
+   */
+  async getAgentSuggestions(body: {
+    project: Record<string, unknown>;
+    control_level?: string;
+    provider_id?: string;
+  }): Promise<{
+    suggestions: Array<{
+      type: string;
+      muse: string;
+      message: string;
+      sceneId?: string;
+      actions: string[];
+    }>;
+    error?: string;
+    fallback_suggestions?: Array<{
+      type: string;
+      muse: string;
+      message: string;
+      sceneId?: string;
+      actions: string[];
+    }>;
+  }> {
+    return backendFetch<{
+      suggestions: Array<{
+        type: string;
+        muse: string;
+        message: string;
+        sceneId?: string;
+        actions: string[];
+      }>;
+      error?: string;
+      fallback_suggestions?: Array<{
+        type: string;
+        muse: string;
+        message: string;
+        sceneId?: string;
+        actions: string[];
+      }>;
+    }>('/agent/suggestions', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  /**
+   * Sync project to backend for agent data access (Phase 2.5).
+   * Frontend pushes full project JSON; backend stores mirror.
+   */
+  async syncProjectToBackend(projectId: string, project: Record<string, unknown>): Promise<{ ok: boolean; message: string }> {
+    return backendFetch<{ ok: boolean; message: string }>('/projects/sync', {
+      method: 'POST',
+      body: JSON.stringify({ project_id: projectId, project }),
+    });
+  },
+
+  /**
+   * Execute an agent-suggested action (Phase 2).
+   */
+  async executeAgentAction(body: {
+    suggestion_id: string;
+    action: string;
+    project: Record<string, unknown>;
+    scene_id?: string;
+  }): Promise<{ job_id?: string; status: string; message: string; error?: string }> {
+    return backendFetch<{ job_id?: string; status: string; message: string; error?: string }>('/agent/execute', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  /**
    * Story Muse: Returns a raw fetch Response with a text/event-stream body.
    * The caller is responsible for streaming the response through to the browser.
    *

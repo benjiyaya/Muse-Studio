@@ -13,6 +13,11 @@ muse-studio/.next/
 *.log
 backups/
 enhancement logs/
+.github/
+.skills/
+.vscode/
+input_test_files/
+
 
 # OS
 .DS_Store

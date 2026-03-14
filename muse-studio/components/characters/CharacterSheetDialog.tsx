@@ -114,6 +114,8 @@ export function CharacterSheetDialog({
       ollamaModel: llmSettings.ollamaModel,
       openaiModel: llmSettings.openaiModel,
       claudeModel: llmSettings.claudeModel,
+      lmstudioBaseUrl: llmSettings.lmstudioBaseUrl,
+      lmstudioModel: llmSettings.lmstudioModel,
       maxTokens: 512,
       temperature: 0.8,
     });

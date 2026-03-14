@@ -1,7 +1,76 @@
-# Muse Agent — Development Environment Setup
+# Muse Studio — AI Story & Video Workspace
 
-Complete setup guide for both the **Next.js frontend** (`muse-studio`) and the
-**Python AI inference backend** (`muse_backend`).
+Muse Studio is a local-first workspace for planning, visualizing, and iterating on stories and video concepts.
+It combines:
+
+- A **frontend** (`muse-studio`) with kanban-style scenes, characters, and “Muse” suggestions.
+- A **Python FastAPI backend** (`muse_backend`) that orchestrates LLMs and video/image providers.
+- Tight integration with **ComfyUI** for image and video generation via your own workflows.
+
+This README focuses on **installation, configuration, and day‑to‑day usage** of the frontend + backend stack on your machine.
+
+
+New features Added :
+
+2026-03-13:
+
+## Exporting your film with the Video Editor Agent
+
+When all your scene videos are ready, Muse can help you turn them into a full film using the Video Editor Agent. Instead of downloading every clip and editing by hand, you can let the agent assemble a master cut for you.
+
+There are two ways the agent can export your film:
+
+**Simple Stitch**
+Use this when you’re happy with each scene as it is. The agent will:
+
+Take all scenes that are marked as Final.
+Arrange them in story order.
+Join them together into one continuous video.
+This is the fastest and most predictable option.
+
+**Smart Edit**
+Use this when you want the agent to “think” a bit more about your footage. The agent will:
+
+Look at each final scene, listen to its audio, and sample a few key frames.
+Prepare an “edited” version of each scene (today this mostly keeps the full content, but it is designed to get smarter over time).
+Then assemble these edited scenes into the final film.
+Smart Edit is designed as the foundation for future, more intelligent editing (tighter pacing, trimming dead air, etc.).
+In the UI, you’ll be able to choose Simple Stitch or Smart Edit before clicking “Export Full Film By Agent”. After you start the export, Muse shows a progress animation while the agent builds your master video, and then gives you a link to open or download the final film.
+
+## Local LLMs — LM Studio support
+
+Muse Studio now supports **LM Studio** as an additional **local LLM provider**, alongside OpenAI, Ollama, and Claude.
+
+- Run the LM Studio app and enable its **OpenAI-compatible local server**.
+- In `muse_backend/.env`, you can optionally set:
+  - `LMSTUDIO_BASE_URL` (default `http://127.0.0.1:1234`)
+  - `LMSTUDIO_MODEL` (any model id reported by LM Studio’s `/v1/models` endpoint)
+  - `LMSTUDIO_API_KEY` (only if you enabled API auth in LM Studio)
+- In `muse-studio/.env.local`, you can mirror the same base URL for the frontend:
+  - `NEXT_PUBLIC_LMSTUDIO_BASE_URL=http://127.0.0.1:1234`
+- In Muse’s provider settings, choose **LM Studio (Local)** and pick a model from the LM Studio Model dropdown. Story Muse (Ask Muse, storyline tools, scene dialogs, character prompts) will then use LM Studio instead of a cloud API or Ollama.
+
+
+### Disabling \"thinking\" output for Qwen models in LM Studio
+
+Some LM Studio models support **\"thinking\"** (they stream internal reasoning text in addition to the final answer). Muse Studio will display whatever text the model returns, so if thinking is enabled, those reasoning traces can appear in your Ask Muse / Storyline / Scene prompts.
+
+If you prefer **not** to see thinking content, you can disable it per‑model inside LM Studio:
+
+1. Open **LM Studio → My Models**.
+2. Select your Qwen model.
+3. In the right panel, choose the **Inference** tab.
+4. Scroll down to **Prompt Template (Jinja)**.
+5. Add this line at the **very beginning** of the template:
+
+   ```jinja
+   {%- set enable_thinking = false %}
+   ```
+
+6. Save the template and restart inference for that model if needed.
+
+After this change, LM Studio will stop emitting thinking text for that model, and Muse Studio will only receive and display the final answer content.
+
 
 ---
 
@@ -113,14 +182,16 @@ Image and video generation run through **ComfyUI**; no local model folder is req
      cp .env.example .env  # or use Copy-Item on Windows
      ```
    - Frontend:
-     ```bash
-     cd ../muse-studio
-     npm install
-     # If .env.local.example exists:
-     #   cp .env.local.example .env.local
-     # Else create .env.local and set:
-     #   MUSE_BACKEND_URL=http://localhost:8000
-     ```
+   ```bash
+   cd ../muse-studio
+   npm install
+   # If .env.local.example exists:
+   #   cp .env.local.example .env.local
+   # Else create .env.local and set at minimum:
+   #   MUSE_BACKEND_URL=http://localhost:8000
+   #   NEXT_PUBLIC_OLLAMA_BASE_URL=http://127.0.0.1:11434   # if you use Ollama
+   #   NEXT_PUBLIC_LMSTUDIO_BASE_URL=http://127.0.0.1:1234  # if you use LM Studio
+   ```
 
 2. **Configure keys**
    - Edit `muse_backend/.env`:
@@ -170,6 +241,9 @@ copy .env.local.example .env.local
 > If `.env.local.example` does not exist, create `.env.local` manually with:
 > ```
 > MUSE_BACKEND_URL=http://localhost:8000
+> # Optional local LLM servers (frontend URLs)
+> NEXT_PUBLIC_OLLAMA_BASE_URL=http://127.0.0.1:11434
+> NEXT_PUBLIC_LMSTUDIO_BASE_URL=http://127.0.0.1:1234
 > ```
 
 Start the dev server:
@@ -311,113 +385,7 @@ GPU: NVIDIA RTX PRO 6000 Blackwell Workstation Edition
 
 ---
 
-### 4.4 Install ML dependencies
-
-```
-pip install transformers>=4.45.0 diffusers>=0.33.0 accelerate>=0.33.0 safetensors>=0.4.3 Pillow>=10.4.0
-```
-
----
-
-### 4.5 Install LTX-Video 2 core
-
-Required for the LTX-Video 2 spatial upsampler (two-stage 1080p pipeline).
-
-```
-pip install git+https://github.com/Lightricks/LTX-2.git#subdirectory=packages/ltx-core
-```
-
-> After this installs, verify PyTorch still has CUDA (ltx-core can sometimes pull
-> in a CPU torch as a dependency). Re-run the install from Step 4.3 if needed.
-
----
-
-### 4.6 Install GGUF support (optional)
-
-Required only if you want to run GGUF-format models (LTX-2 Q4_K_M, FLUX.2-klein GGUF, etc.).
-`llama-cpp-python` compiles a C++ extension — a C++ compiler is required.
-
----
-
-#### Windows — Step A: Install Visual Studio Build Tools (one-time, free)
-
-`llama-cpp-python` needs `nmake` and `cl.exe` from Microsoft's free Build Tools.
-You will see the error `nmake not found / CMAKE_C_COMPILER not set` if these are missing.
-
-**Option 1 — Already have Visual Studio (full IDE):**
-
-If Visual Studio 2019/2022 is installed, the compiler is already there.
-You just need to launch the right terminal — skip to **Step B** and use the
-**Developer Command Prompt** instead of regular CMD.
-
-**Option 2 — Install Visual Studio Build Tools only (free, ~3 GB):**
-
-Open **CMD or PowerShell as Administrator**, then run:
-
-```cmd
-winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621"
-```
-
-Or download manually from: https://visualstudio.microsoft.com/visual-cpp-build-tools/
-and select **"Desktop development with C++"** during install.
-
----
-
-#### Windows — Step B: Install llama-cpp-python with CUDA
-
-The compiler must be on your PATH. The easiest way is the **Developer Command Prompt**,
-which is pre-configured with all VS compiler tools.
-
-1. Open the **Start menu** and search for:
-   `Developer Command Prompt for VS 2022`
-   (or VS 2019 if that's your version) — click it.
-
-2. In that window, navigate to your project and install:
-
-```cmd
-cd path\to\v3_src\muse_backend
-.venv\Scripts\activate.bat
-set CMAKE_ARGS=-DGGML_CUDA=on
-set FORCE_CMAKE=1
-pip install llama-cpp-python --no-cache-dir
-```
-
-> The build takes 5–15 minutes — CMake output scrolling is normal.
-
-If you prefer PowerShell, search for **"Developer PowerShell for VS 2022"** in the Start menu instead, then:
-
-```powershell
-cd path\to\v3_src\muse_backend
-.\.venv\Scripts\Activate.ps1
-$env:CMAKE_ARGS = "-DGGML_CUDA=on"
-$env:FORCE_CMAKE = "1"
-pip install llama-cpp-python --no-cache-dir
-```
-
----
-
-#### Linux / macOS
-
-Install the compiler first if not present:
-
-```bash
-# Ubuntu / Debian
-sudo apt install cmake g++ build-essential
-
-# macOS
-xcode-select --install
-```
-
-Then build with CUDA:
-
-```bash
-source .venv/bin/activate
-CMAKE_ARGS="-DGGML_CUDA=on" FORCE_CMAKE=1 pip install llama-cpp-python --no-cache-dir
-```
-
----
-
-### 4.7 Install remaining dependencies
+### 4.4 Install remaining dependencies
 
 ```
 pip install -r requirements.txt
@@ -450,11 +418,21 @@ cp .env.example .env
 Then open `.env` and fill in your API keys:
 
 ```
-# OpenAI (Story Muse)
+# OpenAI (Story Muse, cloud)
 OPENAI_API_KEY=sk-...
 
 # HuggingFace (required for gated models like FLUX.2-klein safetensors)
 HF_TOKEN=hf_...
+
+# Local LLMs (optional)
+# Ollama — local LLM server
+# OLLAMA_BASE_URL=http://localhost:11434
+# OLLAMA_MODEL=llama3.2
+
+# LM Studio — local LLM server (OpenAI-compatible API)
+# LMSTUDIO_BASE_URL=http://localhost:1234
+# LMSTUDIO_MODEL=gpt-4o-mini
+# LMSTUDIO_API_KEY=your_token_if_enabled
 
 # Cloud video APIs (optional — set whichever you use)
 KLING_API_KEY=
@@ -466,12 +444,17 @@ RUNWAY_API_KEY=
 
 ## 5. ComfyUI — Image & Video Generation
 
-Image and video generation are handled by **ComfyUI**. Run ComfyUI separately and configure the app to use it:
+Image and video generation are handled by **ComfyUI**. Run ComfyUI separately and integrate its workflows into Muse Studio:
 
-- In **muse-studio**, register ComfyUI workflows in **Settings → ComfyUI** (workflow URL and any auth).
-- Scenes use ComfyUI workflows for scene images and video; assign workflows per scene from the kanban board.
+- In ComfyUI, rename your input and output nodes so their titles end with (Input) or (Output) — Muse uses these suffixes to detect dynamic inputs and output.
+- In **ComfyUI**, open your workflow and **export it as API JSON** (or copy the JSON from the workflow editor).
+- In **Muse Studio**, go to **Settings → ComfyUI → Add workflow** and paste the ComfyUI JSON.
+  - Give the workflow a clear name, choose its **kind** (image or video), and save it.
+- Your saved workflows now appear in the **Muse workflow library** and can be:
+  - Assigned per scene on the kanban board (image / video workflow fields).
+  - Used from “Generate with ComfyUI” dialogs for scenes and character sheets.
 
-You do **not** need a `models/` folder in this repo — model weights and pipelines live in your ComfyUI installation.
+You do **not** need a `models/` folder in this repo — model weights and pipelines live entirely in your ComfyUI installation.
 
 ---
 
@@ -782,5 +765,6 @@ To publish this app on GitHub:
 4. **Optional:** Add a repository description, topics (e.g. `nextjs`, `fastapi`, `comfyui`, `ai`), and a link to this README in the repo “About” section.
 
 This project is licensed under the MIT License — see [LICENSE](LICENSE).
-#   M u s e - S t u d i o  
+#   M u s e - S t u d i o 
  
+ "# Muse-Studio" 

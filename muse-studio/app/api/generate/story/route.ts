@@ -140,6 +140,10 @@ function sseChunk(text: string, isFinal = false): string {
   return `data: ${JSON.stringify({ text, is_final: isFinal })}\n\n`;
 }
 
+function sseThinkingChunk(thinking: string): string {
+  return `data: ${JSON.stringify({ thinking, is_final: false })}\n\n`;
+}
+
 function sseError(message: string): Response {
   const body = `data: ${JSON.stringify({ error: message, is_final: true })}\n\n`;
   return new Response(body, {
@@ -258,12 +262,17 @@ async function streamOllama(opts: {
                 message?: { content?: string; thinking?: string };
                 done?: boolean;
               };
-              const text = json.message?.content ?? '';
+              const content = json.message?.content ?? '';
+              const thinking = json.message?.thinking ?? '';
               const isFinal = json.done === true;
 
-              if (text) {
+              if (thinking) {
                 firstTokenReceived = true;
-                controller.enqueue(sseChunk(text, false));
+                controller.enqueue(sseThinkingChunk(thinking));
+              }
+              if (content) {
+                firstTokenReceived = true;
+                controller.enqueue(sseChunk(content, false));
               }
               if (isFinal) {
                 controller.enqueue(sseChunk('', true));
@@ -406,6 +415,112 @@ async function streamOpenAICompat(opts: {
   return sseStream(readable);
 }
 
+// ── LM Studio provider (OpenAI-compatible, no API key) ────────────────────────
+
+async function streamLMStudio(opts: {
+  baseUrl: string;
+  model: string;
+  systemPrompt: string;
+  userMessage: string;
+  maxTokens?: number;
+  temperature?: number;
+}): Promise<Response> {
+  const {
+    baseUrl,
+    model,
+    systemPrompt,
+    userMessage,
+    maxTokens = 2048,
+    temperature = 0.8,
+  } = opts;
+
+  const cleanUrl = baseUrl.replace(/\/+$/, '');
+
+  let upstream: globalThis.Response;
+  try {
+    upstream = await fetch(`${cleanUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage },
+        ],
+        max_tokens: maxTokens,
+        temperature: Math.min(temperature, 1.0),
+        stream: true,
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch {
+    return sseError(`Cannot connect to LM Studio at ${cleanUrl}.`);
+  }
+
+  if (!upstream.ok || !upstream.body) {
+    let detail = `HTTP ${upstream.status}`;
+    try {
+      const body = await upstream.clone().json();
+      detail = body?.error?.message ?? detail;
+    } catch {
+      // ignore
+    }
+    return sseError(`LM Studio error: ${detail}`);
+  }
+
+  const readable = new ReadableStream<string>({
+    async start(controller) {
+      const reader = upstream.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (payload === '[DONE]') {
+              controller.enqueue(sseChunk('', true));
+              continue;
+            }
+            try {
+              const json = JSON.parse(payload) as {
+                choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+              };
+              const choice = json.choices?.[0];
+              const text = choice?.delta?.content ?? '';
+              const isFinal = choice?.finish_reason != null && choice.finish_reason !== '';
+
+              if (text) controller.enqueue(sseChunk(text, false));
+              if (isFinal) controller.enqueue(sseChunk('', true));
+            } catch {
+              // skip malformed
+            }
+          }
+        }
+        controller.enqueue(sseChunk('', true));
+      } catch (err) {
+        controller.enqueue(
+          `data: ${JSON.stringify({ error: String(err), is_final: true })}\n\n`,
+        );
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return sseStream(readable);
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -422,6 +537,8 @@ export async function POST(req: NextRequest) {
     claude_model = 'claude-sonnet-4-6',
     max_tokens,
     temperature,
+    lmstudio_base_url,
+    lmstudio_model,
   } = body as {
     task?: string;
     prompt: string;
@@ -434,6 +551,8 @@ export async function POST(req: NextRequest) {
     claude_model?: string;
     max_tokens?: number;
     temperature?: number;
+    lmstudio_base_url?: string;
+    lmstudio_model?: string;
   };
 
   const systemPrompt = SYSTEM_PROMPTS[task] ?? SYSTEM_PROMPTS.default;
@@ -495,7 +614,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    case 'lmstudio': {
+      const baseUrl =
+        lmstudio_base_url ??
+        process.env.NEXT_PUBLIC_LMSTUDIO_BASE_URL ??
+        'http://127.0.0.1:1234';
+      const model = lmstudio_model || openai_model || 'gpt-4o-mini';
+      return streamLMStudio({
+        baseUrl,
+        model,
+        systemPrompt,
+        userMessage,
+        maxTokens: max_tokens,
+        temperature,
+      });
+    }
+
     default:
-      return sseError(`Unknown provider: "${provider_id}". Choose: ollama, openai, claude`);
+      return sseError(`Unknown provider: "${provider_id}". Choose: ollama, openai, claude, lmstudio`);
   }
 }

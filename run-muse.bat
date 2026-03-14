@@ -5,6 +5,8 @@ echo ========================================
 echo.
 
 :: Terminal 1 - Python Backend
+:: If you get "WinError 10013" (port in use), change --port 8000 to e.g. --port 8001
+:: and set MUSE_BACKEND_URL=http://localhost:8001 in muse-studio/.env.local
 echo [1/2] Starting Python Backend...
 start "Muse Backend" cmd /k "cd muse_backend && .venv\Scripts\activate.bat && uvicorn app.main:app --reload --port 8000"
 

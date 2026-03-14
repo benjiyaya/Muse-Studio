@@ -45,6 +45,14 @@ const PROVIDER_OPTIONS = [
     badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
   },
   {
+    id: 'lmstudio',
+    label: 'LM Studio (Local)',
+    description:
+      'Run local models via LM Studio’s OpenAI-compatible API. Configure in muse_backend/.env.',
+    badge: 'Recommended',
+    badgeColor: 'text-sky-400 bg-sky-500/10 border-sky-500/20',
+  },
+  {
     id: 'openai',
     label: 'OpenAI',
     description: 'Cloud API. Requires OPENAI_API_KEY in muse_backend/.env.',
@@ -129,11 +137,17 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
   const [ollamaModel, setOllamaModel] = useState(initialSettings.ollamaModel);
   const [openaiModel, setOpenaiModel] = useState(initialSettings.openaiModel ?? 'gpt-4o');
   const [claudeModel, setClaudeModel] = useState(initialSettings.claudeModel ?? 'claude-sonnet-4-6');
+  const [lmstudioUrl, setLmstudioUrl] = useState(initialSettings.lmstudioBaseUrl);
+  const [lmstudioModel, setLmstudioModel] = useState(initialSettings.lmstudioModel ?? 'gpt-4o-mini');
 
   const [models, setModels] = useState<LLMModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [ollamaDropdownOpen, setOllamaDropdownOpen] = useState(false);
+  const [lmstudioModels, setLmstudioModels] = useState<string[]>([]);
+  const [lmstudioLoading, setLmstudioLoading] = useState(false);
+  const [lmstudioError, setLmstudioError] = useState<string | null>(null);
+  const [lmstudioDropdownOpen, setLmstudioDropdownOpen] = useState(false);
 
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testing, setTesting] = useState(false);
@@ -146,7 +160,9 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
     ollamaUrl !== initialSettings.ollamaBaseUrl ||
     ollamaModel !== initialSettings.ollamaModel ||
     openaiModel !== (initialSettings.openaiModel ?? 'gpt-4o') ||
-    claudeModel !== (initialSettings.claudeModel ?? 'claude-sonnet-4-6');
+    claudeModel !== (initialSettings.claudeModel ?? 'claude-sonnet-4-6') ||
+    lmstudioUrl !== initialSettings.lmstudioBaseUrl ||
+    lmstudioModel !== (initialSettings.lmstudioModel ?? 'gpt-4o-mini');
 
   // ── Load Ollama models ─────────────────────────────────────────────────────
 
@@ -173,9 +189,35 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
     }
   }, [ollamaModel]);
 
+  const fetchLmstudioModels = useCallback(async (url: string) => {
+    setLmstudioLoading(true);
+    setLmstudioError(null);
+    setLmstudioModels([]);
+    try {
+      const params = new URLSearchParams({ lmstudio_base_url: url });
+      const res = await fetch(`/api/llm/lmstudio-models?${params}`);
+      const data = await res.json();
+      if (data.ok) {
+        const ids: string[] = data.models ?? [];
+        setLmstudioModels(ids);
+        if (ids.length > 0 && !lmstudioModel) {
+          setLmstudioModel(ids[0]);
+        }
+      } else {
+        setLmstudioError(data.error ?? 'Could not fetch LM Studio models');
+      }
+    } catch {
+      setLmstudioError('Could not reach LM Studio');
+    } finally {
+      setLmstudioLoading(false);
+    }
+  }, [lmstudioModel]);
+
   useEffect(() => {
     if (provider === 'ollama') {
       fetchModels(ollamaUrl);
+    } else if (provider === 'lmstudio') {
+      fetchLmstudioModels(lmstudioUrl);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -214,7 +256,33 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
         ollamaModel,
         openaiModel,
         claudeModel,
+        lmstudioBaseUrl: lmstudioUrl,
+        lmstudioModel,
       });
+
+      // Sync to backend so Video Editor Agent and other LLM consumers use the same provider
+      try {
+        const body: Record<string, string | undefined> = { active_provider: provider };
+        if (provider === 'ollama') {
+          body.ollama_base_url = ollamaUrl;
+          body.ollama_model = ollamaModel;
+        } else if (provider === 'lmstudio') {
+          body.lmstudio_base_url = lmstudioUrl;
+          body.lmstudio_model = lmstudioModel;
+        } else if (provider === 'openai') {
+          body.openai_model = openaiModel;
+        } else if (provider === 'claude') {
+          body.claude_model = claudeModel;
+        }
+        await fetch('/api/llm/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+      } catch {
+        // Backend unreachable — non-fatal; SQLite is saved; restart or sync later
+      }
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
       router.refresh();
@@ -526,6 +594,119 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
           <p className="text-xs text-muted-foreground/60">
             The key is never stored in the database. Restart the backend after updating .env.
           </p>
+        </section>
+      )}
+
+      {/* ── LM Studio configuration ────────────────────────────────────────── */}
+      {provider === 'lmstudio' && (
+        <section className="rounded-2xl border border-white/8 bg-[oklch(0.13_0.012_264)] p-5 space-y-5">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Wifi className="h-4 w-4 text-sky-400" />
+            LM Studio Configuration
+          </h2>
+
+          {/* Base URL */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              LM Studio Server URL
+            </label>
+            <input
+              type="text"
+              value={lmstudioUrl}
+              onChange={(e) => setLmstudioUrl(e.target.value)}
+              placeholder="http://localhost:1234"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-mono placeholder:text-muted-foreground/50 outline-none focus:border-sky-500/50 focus:ring-1 focus:ring-sky-500/20 transition-colors"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground/60">
+              Default: http://localhost:1234. Change if LM Studio runs on a different host/port.
+            </p>
+          </div>
+
+          {/* Model selector */}
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Model
+            </label>
+            <div className="relative">
+              <button
+                onClick={() => setLmstudioDropdownOpen((v) => !v)}
+                className="w-full flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm outline-none hover:bg-white/8 transition-colors"
+              >
+                <span className={lmstudioModel ? '' : 'text-muted-foreground/50'}>
+                  {lmstudioModel || (lmstudioLoading ? 'Loading...' : 'Select a model')}
+                </span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </button>
+
+              {lmstudioDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-xl border border-white/10 bg-[oklch(0.16_0.012_264)] shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+                  {lmstudioLoading ? (
+                    <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading models…
+                    </div>
+                  ) : lmstudioModels.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-muted-foreground/60">
+                      {lmstudioError
+                        ? `Error: ${lmstudioError}`
+                        : 'No models found. Check LM Studio /v1/models.'}
+                    </div>
+                  ) : (
+                    lmstudioModels.map((id) => (
+                      <button
+                        key={id}
+                        onClick={() => {
+                          setLmstudioModel(id);
+                          setLmstudioDropdownOpen(false);
+                        }}
+                        className={cn(
+                          'w-full flex items-center justify-between px-4 py-2.5 text-sm text-left hover:bg-white/8 transition-colors',
+                          lmstudioModel === id && 'bg-sky-500/10 text-sky-300',
+                        )}
+                      >
+                        <span className="font-medium">{id}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            {lmstudioError && !lmstudioModels.length && (
+              <p className="mt-1.5 text-xs text-red-400/80">{lmstudioError}</p>
+            )}
+            <p className="mt-1.5 text-xs text-muted-foreground/60">
+              Uses LM Studio&apos;s OpenAI-compatible <code className="font-mono bg-white/5 px-1 rounded">GET /v1/models</code>{' '}
+              to list available models.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-white/6 bg-white/2 p-4">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Quick Setup</p>
+            <ol className="space-y-1.5 text-xs text-muted-foreground/70">
+              <li>
+                <span className="text-foreground/80">1.</span> Install and open{' '}
+                <a
+                  href="https://lmstudio.ai/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sky-400 hover:underline"
+                >
+                  LM Studio
+                </a>
+                .
+              </li>
+              <li>
+                <span className="text-foreground/80">2.</span> Enable the local server (OpenAI-compatible API) in LM Studio.
+              </li>
+              <li>
+                <span className="text-foreground/80">3.</span> Download or select a model in LM Studio, then copy its model id here.
+              </li>
+              <li>
+                <span className="text-foreground/80">4.</span> Choose{' '}
+                <span className="text-foreground/80 font-medium">LM Studio (Local)</span> above as the active provider and save.
+              </li>
+            </ol>
+          </div>
         </section>
       )}
 

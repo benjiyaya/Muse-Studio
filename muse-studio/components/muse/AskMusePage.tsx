@@ -168,6 +168,8 @@ export function AskMusePage({ initialContext, projectId, projects }: AskMusePage
       ollamaModel: llmSettings.ollamaModel,
       openaiModel: llmSettings.openaiModel,
       claudeModel: llmSettings.claudeModel,
+      lmstudioBaseUrl: llmSettings.lmstudioBaseUrl,
+      lmstudioModel: llmSettings.lmstudioModel,
       projectId: selectedProjectId ?? undefined,
       context: initialContext
         ? {

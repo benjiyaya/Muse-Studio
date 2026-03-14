@@ -53,8 +53,15 @@ class ServerConfig:
 class ProviderConfig:
     image_draft: str = field(default_factory=lambda: _get("providers.image_draft", "qwen"))
     image_refine: str = field(default_factory=lambda: _get("providers.image_refine", "zimage_turbo"))
-    llm: str = field(default_factory=lambda: _get("providers.llm", "openai"))
     video_default: str = field(default_factory=lambda: _get("providers.video_default", "ltx2"))
+
+
+# Hot-reload: llm is read from _raw on every access so POST /llm/config can take effect without restart.
+def _provider_llm(_self: ProviderConfig) -> str:
+    return _get("providers.llm", "openai")
+
+
+ProviderConfig.llm = property(_provider_llm)  # type: ignore[assignment]
 
 
 @dataclass

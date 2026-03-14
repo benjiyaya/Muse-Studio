@@ -87,7 +87,7 @@ export async function createMuseSuggestions(
   );
 
   const insert = db.prepare<
-    [string, string, string | null, string, string, string, number, string]
+    [string, string, string | null, string, string, string, string, number, string]
   >(
     `INSERT INTO muse_suggestions
       (id, project_id, scene_id, type, muse, message, actions, is_read, created_at)

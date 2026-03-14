@@ -81,6 +81,63 @@ python run.py
 
 ---
 
+## Local ASR model for Video Editor Agent (onnx-asr + ONNX Whisper)
+
+The Video Editor Agent's transcription helper (`transcribe_video` in
+`app/video_editor_tools.py`) uses a **local ONNX ASR model** via the `onnx-asr`
+library. This keeps all audio processing on your machine and avoids cloud calls.
+
+Before running the full Muse system with the Video Editor Agent enabled, you
+should:
+
+1. **Install `onnx-asr` inside the virtual environment**
+
+   ```powershell
+   # From muse_backend/, with .venv activated
+   pip install onnx-asr
+   ```
+
+2. **Download an ONNX Whisper model into your models folder**
+
+   We recommend the small Portuguese Whisper model from OpenVoiceOS as a starting point:
+
+   - Model card: https://huggingface.co/OpenVoiceOS/whisper-small-pt-onnx
+
+   Create a directory under `muse_backend/models/onnx-asr` (or whatever
+   `MODEL_BASE_PATH` points to), for example:
+
+   ```text
+   muse_backend/
+     models/
+       onnx-asr/
+         whisper-small-pt/
+           # ONNX model files go here
+   ```
+
+   Download or export the ONNX model into that folder following the instructions
+   in the model card (or your preferred ONNX Whisper variant).
+
+3. **Point the backend at the local ASR model**
+
+   Set the `MUSE_ASR_MODEL_ID` environment variable to the local model path. In
+   `muse_backend/.env` this might look like:
+
+   ```env
+   MUSE_ASR_MODEL_ID=e:/MuseAgent_KanbunPM/v3_src/muse_backend/models/onnx-asr/whisper-small-pt
+   ```
+
+   On Windows PowerShell you can also set it temporarily for the current shell:
+
+   ```powershell
+   $env:MUSE_ASR_MODEL_ID = "e:\MuseAgent_KanbunPM\v3_src\muse_backend\models\onnx-asr\whisper-small-pt"
+   ```
+
+At runtime, `app.video_editor_tools._get_asr_model()` will load this model once
+via `onnx_asr.load_model(MUSE_ASR_MODEL_ID)` and reuse it for subsequent
+transcription calls.
+
+---
+
 ## CUDA Environment Quick Reference
 
 | Command | Purpose |

@@ -19,6 +19,14 @@ aiofiles>=24.1.0               # Async file I/O
 # ── Story Muse — OpenAI LLM provider ─────────────────────────────────────────
 openai>=1.40.0
 
+# ── LangGraph — Agent orchestration ──────────────────────────────────────────
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-openai>=0.2.0
+langchain-anthropic>=0.2.0
+langchain-ollama>=0.2.0      # Ollama (preferred over deprecated ChatOllama in langchain-community)
+langchain-community>=0.3.0   # Fallback / other integrations
+
 # ══════════════════════════════════════════════════════════════════════════════
 # AI / ML — install these AFTER activating .venv, following the steps below.
 # ══════════════════════════════════════════════════════════════════════════════
@@ -74,6 +82,20 @@ gguf>=0.10.0                   # GGUF file loading for LTX-Video 2 GGUF diffusio
 # av>=12.0.0                   # PyAV — video encode/decode (used by ltx-core)
 imageio>=2.37.0                # Video export — required by diffusers export_to_video
 imageio-ffmpeg>=0.5.0          # FFmpeg backend for imageio (bundles a static ffmpeg binary)
+
+# NOTE: app/video_editor_tools.py also calls the system `ffmpeg` and `ffprobe`
+# CLIs via subprocess. On most setups you should install ffmpeg separately and
+# ensure both binaries are available on PATH. The static ffmpeg bundled by
+# imageio-ffmpeg is used by diffusers/imageio, but the Video Editor tools
+# expect callable CLI executables.
+
+# ── ASR / transcription ───────────────────────────────────────────────────────
+# Local ASR for the Video Editor Agent (onnx-asr + ONNX Whisper)
+onnx-asr
+
+# If you prefer a different ASR backend, you can also install alternatives here,
+# for example:
+# openai-whisper>=20231117      # Example: Whisper CLI/ Python bindings
 
 # ── Cloud API providers (optional) ───────────────────────────────────────────
 # runwayml>=1.0.0              # Runway Gen-3/4 Python SDK

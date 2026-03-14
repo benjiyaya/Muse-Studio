@@ -133,6 +133,8 @@ export function StorylineStage({ project, onConfirm, llmSettings }: StorylineSta
       ollamaModel: llmSettings?.ollamaModel,
       openaiModel: llmSettings?.openaiModel,
       claudeModel: llmSettings?.claudeModel,
+      lmstudioBaseUrl: llmSettings?.lmstudioBaseUrl,
+      lmstudioModel: llmSettings?.lmstudioModel,
     });
 
     if (error || !raw) return; // Error is displayed inline

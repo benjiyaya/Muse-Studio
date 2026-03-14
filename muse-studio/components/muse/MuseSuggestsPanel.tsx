@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { MUSE_CONFIG, SUGGESTION_TYPE_CONFIG } from '@/lib/constants';
-import type { MuseSuggestion, MuseAgent, SuggestionAction } from '@/lib/types';
+import type { MuseSuggestion, MuseAgent, SuggestionAction, Scene } from '@/lib/types';
 
 interface MuseSuggestsPanelProps {
   suggestions: MuseSuggestion[];
   onDismiss?: (id: string) => void;
   onAction?: (id: string, action: SuggestionAction) => void;
-  onRefresh?: () => Promise<void>;
+  onRefresh?: () => void | Promise<void>;
+  /** Scenes for scene links when suggestion has sceneId */
+  scenes?: Scene[];
 }
 
 const MUSE_ICONS: Record<MuseAgent, React.ElementType> = {
@@ -40,15 +42,33 @@ function timeAgo(date: Date): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+const MUSE_ORDER: MuseAgent[] = ['STORY_MUSE', 'VISUAL_MUSE', 'MOTION_MUSE'];
+
+function groupByMuse(suggestions: MuseSuggestion[]): Map<MuseAgent, MuseSuggestion[]> {
+  const map = new Map<MuseAgent, MuseSuggestion[]>();
+  for (const m of MUSE_ORDER) {
+    map.set(m, []);
+  }
+  for (const s of suggestions) {
+    const list = map.get(s.muse) ?? [];
+    list.push(s);
+    map.set(s.muse, list);
+  }
+  return map;
+}
+
 export function MuseSuggestsPanel({
   suggestions,
   onDismiss,
   onAction,
   onRefresh,
+  scenes = [],
 }: MuseSuggestsPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const unread = suggestions.filter((s) => !s.isRead).length;
+  const grouped = groupByMuse(suggestions);
+  const sceneMap = new Map(scenes.map((s) => [s.id, s]));
 
   return (
     <>
@@ -113,7 +133,15 @@ export function MuseSuggestsPanel({
           </SheetHeader>
 
           <div className="flex flex-col gap-2 overflow-y-auto p-4">
-            {suggestions.length === 0 ? (
+            {isRefreshing && suggestions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="mb-3 h-8 w-8 animate-pulse rounded-full bg-violet-500/30" />
+                <p className="text-sm text-muted-foreground">Muse is thinking…</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  Analyzing your project
+                </p>
+              </div>
+            ) : suggestions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Bell className="mb-3 h-8 w-8 text-muted-foreground/30" />
                 <p className="text-sm text-muted-foreground">No suggestions right now</p>
@@ -122,84 +150,105 @@ export function MuseSuggestsPanel({
                 </p>
               </div>
             ) : (
-              suggestions.map((suggestion) => {
-                const museConfig = MUSE_CONFIG[suggestion.muse];
-                const typeConfig = SUGGESTION_TYPE_CONFIG[suggestion.type];
-                const MuseIcon = MUSE_ICONS[suggestion.muse];
-                return (
-                  <div
-                    key={suggestion.id}
-                    className={cn(
-                      'group rounded-xl border p-4 transition-colors',
-                      suggestion.isRead
-                        ? 'border-white/6 bg-white/3'
-                        : 'border-white/10 bg-white/5',
-                    )}
-                  >
-                    {/* Top row */}
-                    <div className="mb-2.5 flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={cn(
-                            'flex h-6 w-6 items-center justify-center rounded-lg',
-                            museConfig.bgClass,
-                          )}
-                        >
-                          <MuseIcon className={cn('h-3.5 w-3.5', museConfig.textClass)} />
-                        </span>
-                        <span className={cn('text-xs font-medium', museConfig.textClass)}>
-                          {museConfig.name}
-                        </span>
-                        <span
-                          className={cn(
-                            'rounded-full border px-2 py-0.5 text-[10px] font-medium',
-                            typeConfig.bgClass,
-                            typeConfig.textClass,
-                            typeConfig.borderClass,
-                          )}
-                        >
-                          {typeConfig.label}
-                        </span>
-                      </div>
-                      <span className="shrink-0 text-[10px] text-muted-foreground/60">
-                        {timeAgo(suggestion.createdAt)}
-                      </span>
-                    </div>
-
-                    {/* Message */}
-                    <p className="mb-3 text-xs leading-relaxed text-foreground/80">
-                      {suggestion.message}
+              MUSE_ORDER.flatMap((muse) => {
+                const list = grouped.get(muse) ?? [];
+                if (list.length === 0) return [];
+                return [
+                  <div key={`group-${muse}`} className="pt-2 first:pt-0">
+                    <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/80">
+                      {MUSE_CONFIG[muse].name}
                     </p>
-
-                    {/* Actions */}
-                    <div className="flex flex-wrap gap-1.5">
-                      {suggestion.actions
-                        .filter((a) => a !== 'DISMISS')
-                        .map((action) => (
-                          <Button
-                            key={action}
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onAction?.(suggestion.id, action)}
+                    <div className="flex flex-col gap-2">
+                      {list.map((suggestion) => {
+                        const museConfig = MUSE_CONFIG[suggestion.muse];
+                        const typeConfig = SUGGESTION_TYPE_CONFIG[suggestion.type];
+                        const MuseIcon = MUSE_ICONS[suggestion.muse];
+                        return (
+                          <div
+                            key={suggestion.id}
                             className={cn(
-                              'h-6 rounded-full border-white/10 bg-white/5 px-2.5 text-[11px] hover:border-white/20 hover:bg-white/10',
+                              'group rounded-xl border p-4 transition-colors',
+                              suggestion.isRead
+                                ? 'border-white/6 bg-white/3'
+                                : 'border-white/10 bg-white/5',
                             )}
                           >
-                            {ACTION_LABELS[action]}
-                            <ChevronRight className="ml-0.5 h-3 w-3" />
-                          </Button>
-                        ))}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onDismiss?.(suggestion.id)}
-                        className="h-6 rounded-full px-2.5 text-[11px] text-muted-foreground hover:text-foreground"
-                      >
-                        Dismiss
-                      </Button>
+                            {/* Top row */}
+                            <div className="mb-2.5 flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={cn(
+                                    'flex h-6 w-6 items-center justify-center rounded-lg',
+                                    museConfig.bgClass,
+                                  )}
+                                >
+                                  <MuseIcon className={cn('h-3.5 w-3.5', museConfig.textClass)} />
+                                </span>
+                                <span className={cn('text-xs font-medium', museConfig.textClass)}>
+                                  {museConfig.name}
+                                </span>
+                                <span
+                                  className={cn(
+                                    'rounded-full border px-2 py-0.5 text-[10px] font-medium',
+                                    typeConfig.bgClass,
+                                    typeConfig.textClass,
+                                    typeConfig.borderClass,
+                                  )}
+                                >
+                                  {typeConfig.label}
+                                </span>
+                              </div>
+                              <span className="shrink-0 text-[10px] text-muted-foreground/60">
+                                {timeAgo(suggestion.createdAt)}
+                              </span>
+                            </div>
+
+                            {/* Scene context */}
+                            {suggestion.sceneId && (
+                              <p className="mb-1.5 text-[10px] text-muted-foreground/80">
+                                {sceneMap.get(suggestion.sceneId)
+                                  ? `Scene ${sceneMap.get(suggestion.sceneId)!.sceneNumber}: ${sceneMap.get(suggestion.sceneId)!.title || 'Untitled'}`
+                                  : `Scene`}
+                              </p>
+                            )}
+                            {/* Message */}
+                            <p className="mb-3 text-xs leading-relaxed text-foreground/80">
+                              {suggestion.message}
+                            </p>
+
+                            {/* Actions */}
+                            <div className="flex flex-wrap gap-1.5">
+                              {suggestion.actions
+                                .filter((a) => a !== 'DISMISS')
+                                .map((action) => (
+                                  <Button
+                                    key={action}
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => onAction?.(suggestion.id, action)}
+                                    className={cn(
+                                      'h-6 rounded-full border-white/10 bg-white/5 px-2.5 text-[11px] hover:border-white/20 hover:bg-white/10',
+                                    )}
+                                  >
+                                    {ACTION_LABELS[action]}
+                                    <ChevronRight className="ml-0.5 h-3 w-3" />
+                                  </Button>
+                                ))}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => onDismiss?.(suggestion.id)}
+                                className="h-6 rounded-full px-2.5 text-[11px] text-muted-foreground hover:text-foreground"
+                              >
+                                Dismiss
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                );
+                  </div>,
+                ];
               })
             )}
           </div>

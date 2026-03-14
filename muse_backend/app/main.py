@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api.routes import generate, providers, jobs, llm, inference_settings
+from app.api.routes import agent, generate, providers, jobs, llm, inference_settings, projects, editor
 from app.schemas import HealthResponse
 from app.registry import get_all_provider_info
 
@@ -46,11 +46,14 @@ app.add_middleware(
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 
+app.include_router(agent.router)
 app.include_router(generate.router)
+app.include_router(projects.router)
 app.include_router(providers.router)
 app.include_router(jobs.router)
 app.include_router(llm.router)
 app.include_router(inference_settings.router)
+app.include_router(editor.router)
 
 # ── Health check ──────────────────────────────────────────────────────────────
 

@@ -42,7 +42,7 @@ interface KanbanBoardProps {
 
 // Poll background video generation jobs infrequently — ComfyUI runs can take a while.
 // 3 minutes is enough to avoid spamming the backend while still updating the UI.
-const POLL_INTERVAL_MS = 3 * 60 * 1000;
+const POLL_INTERVAL_MS = 1 * 60 * 1000;
 
 export function KanbanBoard({
   initialScenes,

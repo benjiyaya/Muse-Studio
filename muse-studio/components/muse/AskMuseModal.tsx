@@ -67,10 +67,16 @@ export function AskMuseModal({ isOpen, onClose, defaultMuse = 'STORY_MUSE', cont
   };
 
   const isLoading = storyMuse.isGenerating;
+  const isLoadingModel = storyMuse.isLoadingModel;
+  const thinkingText = storyMuse.thinkingText ?? '';
   const response =
     storyMuse.text || storyMuse.error
       ? (storyMuse.error ?? storyMuse.text)
       : null;
+
+  const showLoadingState = isLoading && !response;
+  const showThinking = showLoadingState && thinkingText.length > 0;
+  const showStarting = showLoadingState && !thinkingText && !storyMuse.text;
 
   function handleMuseSwitch(muse: MuseAgent) {
     setActiveMuse(muse);
@@ -90,6 +96,8 @@ export function AskMuseModal({ isOpen, onClose, defaultMuse = 'STORY_MUSE', cont
       ollamaModel: llmSettings.ollamaModel,
       openaiModel: llmSettings.openaiModel,
       claudeModel: llmSettings.claudeModel,
+      lmstudioBaseUrl: llmSettings.lmstudioBaseUrl,
+      lmstudioModel: llmSettings.lmstudioModel,
       context: context
         ? {
             sceneId: context.sceneId,
@@ -177,23 +185,70 @@ export function AskMuseModal({ isOpen, onClose, defaultMuse = 'STORY_MUSE', cont
 
         {/* Response area */}
         {(response || isLoading) && (
-          <div
-            className={cn(
-              'mx-5 mt-3 rounded-xl border p-4 text-sm max-h-64 overflow-y-auto',
-              storyMuse.error ? 'border-red-500/30 bg-red-500/8 text-red-300' : config.bgClass,
-              !storyMuse.error && config.borderClass,
-              !storyMuse.error && config.textClass,
-            )}
-          >
-            <div className="flex items-start gap-2">
-              <Icon className="h-4 w-4 mt-0.5 shrink-0" />
-              <p className="leading-relaxed whitespace-pre-wrap">
-                {response}
-                {isLoading && (
-                  <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-current align-middle" />
+          <div className="mx-5 mt-3 space-y-2">
+            {/* Status / what’s happening — so it’s not a black box */}
+            {showLoadingState && (
+              <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-muted-foreground">
+                <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-violet-500/50 border-t-transparent" aria-hidden />
+                {showStarting && (
+                  <span>Muse is connecting and preparing your response…</span>
                 )}
+                {showThinking && (
+                  <span>Muse is thinking through your request…</span>
+                )}
+                {!showStarting && !showThinking && storyMuse.text && (
+                  <span>Muse is writing…</span>
+                )}
+              </div>
+            )}
+
+            {/* Thinking stream (when supported, e.g. Ollama extended thinking) */}
+            {showThinking && thinkingText.length > 0 && (
+              <div
+                className={cn(
+                  'rounded-xl border p-4 text-sm max-h-40 overflow-y-auto',
+                  'border-amber-500/20 bg-amber-500/5 text-amber-200/90',
+                )}
+                role="status"
+                aria-live="polite"
+              >
+                <p className="text-[11px] font-medium uppercase tracking-wider text-amber-400/80 mb-1.5">
+                  Thinking
+                </p>
+                <p className="leading-relaxed whitespace-pre-wrap font-mono text-xs">
+                  {thinkingText}
+                  <span className="ml-0.5 inline-block h-3 w-0.5 animate-pulse bg-amber-400 align-middle" />
+                </p>
+              </div>
+            )}
+
+            {/* Main response (streamed content or error) — show when there is content or error */}
+            {(response != null && response !== '') || (isLoading && storyMuse.text) ? (
+              <div
+                className={cn(
+                  'rounded-xl border p-4 text-sm max-h-64 overflow-y-auto',
+                  storyMuse.error ? 'border-red-500/30 bg-red-500/8 text-red-300' : config.bgClass,
+                  !storyMuse.error && config.borderClass,
+                  !storyMuse.error && config.textClass,
+                )}
+              >
+                <div className="flex items-start gap-2">
+                  <Icon className="h-4 w-4 mt-0.5 shrink-0" />
+                  <p className="leading-relaxed whitespace-pre-wrap flex-1 min-w-0">
+                    {response ?? storyMuse.text}
+                    {isLoading && storyMuse.text && (
+                      <span className="ml-0.5 inline-block h-3.5 w-0.5 animate-pulse bg-current align-middle" />
+                    )}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+
+            {showLoadingState && (
+              <p className="text-[11px] text-muted-foreground/60 px-0.5">
+                Response streams here as Muse thinks and writes. You can keep the dialog open or cancel.
               </p>
-            </div>
+            )}
           </div>
         )}
 

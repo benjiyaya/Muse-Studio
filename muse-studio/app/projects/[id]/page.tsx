@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { KanbanBoard } from '@/components/kanban/KanbanBoard';
@@ -59,6 +60,10 @@ export default async function ProjectKanbanPage({ params, searchParams }: PagePr
     storylineConfirmed: project.storylineConfirmed,
     scenes: project.scenes,
   });
+
+  const allScenesFinal =
+    project.scenes.length > 0 &&
+    project.scenes.every((s) => s.status === 'FINAL');
 
   const comfyImageWorkflows = allWorkflows.filter((w: { kind: string }) => w.kind === 'image');
   const comfyVideoWorkflows = allWorkflows.filter((w: { kind: string }) => w.kind === 'video');
@@ -130,15 +135,18 @@ export default async function ProjectKanbanPage({ params, searchParams }: PagePr
         <ProjectCharactersButton
           projectId={id}
           projectTitle={project.title}
-          storyline={project.storyline}
-          llmSettings={llmSettings}
-          comfyImageWorkflows={comfyImageWorkflows}
-          initialCharacters={characters}
         />
 
-        {/* Storyline confirmation badge */}
+        {/* Export Full Film (when all scenes final) or Storyline badge */}
         <div className="ml-auto">
-          {project.storylineConfirmed ? (
+          {allScenesFinal ? (
+            <Link
+              href={`/projects/${id}/export`}
+              className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1.5 text-[11px] font-semibold text-black shadow-[0_0_18px_rgba(16,185,129,0.65)] hover:bg-emerald-400 hover:shadow-[0_0_22px_rgba(16,185,129,0.9)] transition-colors transition-shadow"
+            >
+              Export Full Film <span aria-hidden>&rarr;</span>
+            </Link>
+          ) : project.storylineConfirmed ? (
             <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-[10px] font-medium text-emerald-400">
               ✓ Storyline confirmed
             </span>

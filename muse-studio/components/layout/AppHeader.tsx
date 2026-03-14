@@ -16,9 +16,8 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AskMuseModal } from '@/components/muse/AskMuseModal';
 import { MuseSuggestsPanel } from '@/components/muse/MuseSuggestsPanel';
-import { MuseBadge } from '@/components/muse/MuseBadge';
 import { cn } from '@/lib/utils';
-import { MUSE_CONFIG, CONTROL_LEVEL_CONFIG } from '@/lib/constants';
+import { CONTROL_LEVEL_CONFIG } from '@/lib/constants';
 import type { MuseAgent, MuseControlLevel, MuseSuggestion, SuggestionAction, ProjectOverview } from '@/lib/types';
 import { useProjectStatus } from './ProjectStatusContext';
 import { dismissSuggestion } from '@/lib/actions/muse-suggestions';
@@ -140,11 +139,6 @@ export function AppHeader({
         {/* Right side */}
         <div className="ml-auto flex items-center gap-2">
 
-          {/* Active Muse badge (project view only) */}
-          {isProjectView && (
-            <MuseBadge muse={activeMuse} size="sm" className="hidden sm:inline-flex" />
-          )}
-
           {/* Control Level */}
           {isProjectView && (
             <DropdownMenu>
@@ -208,6 +202,7 @@ export function AppHeader({
             onDismiss={handleDismiss}
             onAction={handleSuggestionAction}
             onRefresh={projectId ? handleRefreshSuggestions : undefined}
+            scenes={overviewProject?.scenes ?? []}
           />
 
           {/* Nav: Projects */}

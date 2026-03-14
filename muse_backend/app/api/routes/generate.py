@@ -407,6 +407,8 @@ async def generate_story(request: StoryGenerateRequest):
         "ollama_model": request.ollama_model,
         "openai_model": request.openai_model,
         "claude_model": request.claude_model,
+        "lmstudio_base_url": request.lmstudio_base_url,
+        "lmstudio_model": request.lmstudio_model,
     }
 
     async def event_stream() -> AsyncGenerator[str, None]:

@@ -1,25 +1,20 @@
 {
   "_comment": "Muse Agent Backend Configuration. Edit this file to customize paths and active providers.",
-
   "models_path": "models",
-
   "server": {
     "host": "0.0.0.0",
     "port": 8000,
     "reload": true,
     "log_level": "info"
   },
-
   "outputs_path": "muse-studio/outputs",
-
   "providers": {
     "image_draft": "flux_klein",
     "image_draft_alt": "qwen",
     "image_refine": "zimage_turbo",
-    "llm": "openai",
+    "llm": "ollama",
     "video_default": "ltx2"
   },
-
   "model_formats": {
     "_comment": "Supported formats: bf16, fp16, fp8, fp4, gguf. See models/README.md for which formats each model supports.",
     "qwen-image-edit": "bf16",
@@ -28,16 +23,14 @@
     "wan2.2": "gguf",
     "ltx2": "bf16"
   },
-
   "inference": {
     "_comment": "flux_klein_offload: 'none' (full GPU, fastest) | 'model' (saves ~15 GB VRAM) | 'sequential' (minimum VRAM, slowest)",
     "flux_klein_offload": "none"
   },
-
   "generation": {
     "image": {
       "default_aspect_ratio": "16:9",
-      "default_denoise_strength": 1.00,
+      "default_denoise_strength": 1.0,
       "max_reference_images": 5
     },
     "video": {
@@ -49,5 +42,11 @@
       "temperature": 0.8,
       "stream": true
     }
+  },
+  "llm": {
+    "lmstudio_base_url": "http://127.0.0.1:1234",
+    "lmstudio_model": "qwen3.5-9b-uncensored-hauhaucs-aggressive",
+    "ollama_base_url": "http://127.0.0.1:11434/",
+    "ollama_model": "huihui_ai/qwen3.5-abliterated:9b-fp16"
   }
 }

@@ -5,7 +5,11 @@ import { NextRequest, NextResponse } from 'next/server';
  * Works even when muse_backend is not running.
  */
 export async function GET(request: NextRequest) {
-  const baseUrl = request.nextUrl.searchParams.get('base_url') ?? 'http://localhost:11434';
+  const baseUrl =
+    request.nextUrl.searchParams.get('base_url') ??
+    process.env.NEXT_PUBLIC_OLLAMA_BASE_URL ??
+    'http://127.0.0.1:11434';
+
   const cleanUrl = baseUrl.replace(/\/+$/, '');
 
   try {

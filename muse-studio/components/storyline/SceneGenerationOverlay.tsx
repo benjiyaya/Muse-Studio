@@ -129,7 +129,7 @@ export function SceneGenerationOverlay({ projectId, targetScenes }: Props) {
 
               switch (currentEvent) {
                 case 'import': {
-                  const field = payload as ImportField;
+                  const field = payload as unknown as ImportField;
                   pendingImports.push(field);
                   // Wait until we have all 5 (or start after a short delay)
                   if (importAnimTimer) clearTimeout(importAnimTimer);
@@ -148,13 +148,13 @@ export function SceneGenerationOverlay({ projectId, targetScenes }: Props) {
                 }
 
                 case 'scene': {
-                  const card = payload as SceneCard;
+                  const card = payload as unknown as SceneCard;
                   setScenes((prev) => [...prev, card]);
                   break;
                 }
 
                 case 'done': {
-                  const { totalScenes, underfilled: underfillFlag } = payload as {
+                  const { totalScenes, underfilled: underfillFlag } = payload as unknown as {
                     totalScenes?: number;
                     underfilled?: boolean;
                   };

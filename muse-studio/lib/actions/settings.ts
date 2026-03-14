@@ -51,11 +51,13 @@ export async function setSettings(entries: Record<string, string>): Promise<void
 // ─── LLM settings convenience helpers ────────────────────────────────────────
 
 export interface LLMSettings {
-  llmProvider: string;    // "ollama" | "openai" | "claude"
+  llmProvider: string;    // "ollama" | "openai" | "claude" | "lmstudio"
   ollamaBaseUrl: string;
   ollamaModel: string;
   openaiModel: string;
   claudeModel: string;
+  lmstudioBaseUrl: string;
+  lmstudioModel: string;
 }
 
 export async function getLLMSettings(): Promise<LLMSettings> {
@@ -66,6 +68,8 @@ export async function getLLMSettings(): Promise<LLMSettings> {
     ollamaModel: all['ollama_model'] ?? 'qwen3-vl:latest',
     openaiModel: all['openai_model'] ?? 'gpt-4o',
     claudeModel: all['claude_model'] ?? 'claude-sonnet-4-6',
+    lmstudioBaseUrl: all['lmstudio_base_url'] ?? 'http://localhost:1234',
+    lmstudioModel: all['lmstudio_model'] ?? '',
   };
 }
 
@@ -76,6 +80,8 @@ export async function saveLLMSettings(data: LLMSettings): Promise<void> {
     ollama_model: data.ollamaModel,
     openai_model: data.openaiModel,
     claude_model: data.claudeModel,
+    lmstudio_base_url: data.lmstudioBaseUrl,
+    lmstudio_model: data.lmstudioModel,
   });
 }
 

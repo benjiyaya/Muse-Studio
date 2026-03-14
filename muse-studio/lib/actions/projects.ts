@@ -6,6 +6,7 @@ import fs from 'fs';
 import { db } from '@/db';
 import type { Project, Scene, Keyframe, StorylineContent, ImageAsset } from '@/lib/types';
 import { generateStorySuggestions } from '@/lib/actions/muse-agent';
+import { backendClient } from '@/lib/backend-client';
 
 // ─── Row types returned by SQLite ─────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ function mapScene(row: SceneRow, keyframes: Keyframe[]): Scene {
     keyframes,
     videoUrl: row.video_url ?? undefined,
     videoDurationSeconds: row.video_duration_seconds ?? undefined,
+    activeMuse: row.active_muse ? (row.active_muse as Scene['activeMuse']) : undefined,
     comfyImageWorkflowId: row.comfy_image_workflow_id ?? undefined,
     comfyVideoWorkflowId: row.comfy_video_workflow_id ?? undefined,
     createdAt: new Date(row.created_at),
@@ -209,7 +211,17 @@ export async function getProjectById(id: string): Promise<Project | null> {
   if (!row) return null;
 
   const scenes = loadScenesForProject(id);
-  return mapProject(row, scenes);
+  const project = mapProject(row, scenes);
+
+  // Phase 2.5: Sync project to backend for agent data access (fire-and-forget)
+  backendClient
+    .syncProjectToBackend(id, JSON.parse(JSON.stringify(project)))
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[projects] Failed to sync project to backend', { id, err });
+    });
+
+  return project;
 }
 
 /** Create a new project. Returns the created project. */

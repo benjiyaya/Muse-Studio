@@ -198,6 +198,8 @@ export function SceneMuseDialog({
       ollamaModel: llmSettings.ollamaModel,
       openaiModel: llmSettings.openaiModel,
       claudeModel: llmSettings.claudeModel,
+      lmstudioBaseUrl: llmSettings.lmstudioBaseUrl,
+      lmstudioModel: llmSettings.lmstudioModel,
       maxTokens: mode === 'image_prompt' ? 512 : 2048,
       temperature: mode === 'image_prompt' ? 0.85 : 0.75,
     });

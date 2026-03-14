@@ -28,9 +28,11 @@ from app.providers.video.local.ltx_provider import LTXProvider
 from app.providers.video.api.kling_provider import KlingProvider
 from app.providers.video.api.seeddance_provider import SeedDanceProvider
 from app.providers.video.api.runway_provider import RunwayProvider
+from app.providers.video.omni_provider import OmniVideoProvider
 from app.providers.llm.openai_provider import OpenAIProvider
 from app.providers.llm.ollama_provider import OllamaProvider
 from app.providers.llm.claude_provider import ClaudeProvider
+from app.providers.llm.lmstudio_provider import LMStudioProvider
 
 
 # ── Provider registries ───────────────────────────────────────────────────────
@@ -48,6 +50,8 @@ IMAGE_REFINE_PROVIDERS: dict[str, Type[ImageRefineProvider]] = {
 }
 
 VIDEO_PROVIDERS: dict[str, Type[VideoProvider]] = {
+    # Omni — routes to configured default (Phase 3)
+    "omni": OmniVideoProvider,
     # Local models
     "wan2.2": WanProvider,
     "ltx2": LTXProvider,
@@ -62,6 +66,7 @@ LLM_PROVIDERS: dict[str, Type[LLMProvider]] = {
     "openai": OpenAIProvider,
     "ollama": OllamaProvider,
     "claude": ClaudeProvider,
+    "lmstudio": LMStudioProvider,
 }
 
 

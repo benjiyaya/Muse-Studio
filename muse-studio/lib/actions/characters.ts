@@ -85,7 +85,7 @@ export async function listCharacters(projectId: string): Promise<Character[]> {
   const ids = characterRows.map((c) => c.id);
   const placeholders = ids.map(() => '?').join(',');
   const imageRows = db
-    .prepare<CharacterImageRow[]>(`SELECT * FROM character_images WHERE character_id IN (${placeholders}) ORDER BY created_at`)
+    .prepare(`SELECT * FROM character_images WHERE character_id IN (${placeholders}) ORDER BY created_at`)
     .all(...ids) as CharacterImageRow[];
 
   const byCharacter: Record<string, CharacterImage[]> = {};
@@ -137,6 +137,7 @@ export async function createCharacter(input: CreateCharacterInput): Promise<Char
     .prepare<[string], CharacterRow>('SELECT * FROM characters WHERE id = ?')
     .get(id);
 
+  if (!row) throw new Error('Character not found after create');
   return mapCharacter(row, []);
 }
 
@@ -232,6 +233,7 @@ export async function addCharacterImage(input: AddCharacterImageInput): Promise<
     .prepare<[string], CharacterImageRow>('SELECT * FROM character_images WHERE id = ?')
     .get(id);
 
+  if (!row) throw new Error('Character image not found after create');
   return mapImageRow(row);
 }
 

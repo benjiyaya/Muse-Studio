@@ -15,6 +15,8 @@ build/
 
 # Generated outputs (not source code)
 outputs/
+models/
+models/onnx-asr/
 
 # IDE
 .vscode/

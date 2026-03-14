@@ -181,6 +181,15 @@ class StoryGenerateRequest(BaseModel):
         default=None,
         description="e.g. 'claude-sonnet-4-6', 'claude-opus-4-6'"
     )
+    # LM Studio overrides (used when provider_id = "lmstudio")
+    lmstudio_base_url: Optional[str] = Field(
+        default=None,
+        description="Override LMSTUDIO_BASE_URL env var for this request."
+    )
+    lmstudio_model: Optional[str] = Field(
+        default=None,
+        description="Override LMSTUDIO_MODEL env var for this request."
+    )
 
 
 # ── Job polling ───────────────────────────────────────────────────────────────
@@ -197,6 +206,49 @@ class JobResult(BaseModel):
     created_at: str
     updated_at: str
     comfy_prompt_id: Optional[str] = None
+
+
+# ── Agent suggestions ─────────────────────────────────────────────────────────
+
+class AgentSuggestionItem(BaseModel):
+    type: str  # CONSISTENCY | ENHANCEMENT | VISUAL_STYLE | PACING
+    muse: str  # STORY_MUSE | VISUAL_MUSE | MOTION_MUSE
+    message: str
+    sceneId: Optional[str] = None
+    actions: list[str] = Field(default_factory=lambda: ["REVIEW", "EDIT", "DISMISS"])
+
+
+class AgentSuggestionsRequest(BaseModel):
+    project: dict = Field(..., description="Full project JSON from frontend")
+    control_level: str = Field(default="ASSISTANT")
+    provider_id: Optional[str] = Field(default=None)
+
+
+class AgentSuggestionsResponse(BaseModel):
+    suggestions: list[AgentSuggestionItem] = Field(default_factory=list)
+    error: Optional[str] = None
+    fallback_suggestions: Optional[list[AgentSuggestionItem]] = None
+
+
+class AgentExecuteRequest(BaseModel):
+    suggestion_id: str
+    action: str  # ACCEPT, FIX, etc.
+    project: dict = Field(..., description="Full project JSON")
+    scene_id: Optional[str] = None
+
+
+class AgentExecuteResponse(BaseModel):
+    job_id: Optional[str] = None
+    status: str  # queued | running | completed | failed
+    message: str
+    error: Optional[str] = None
+
+
+class AgentRevisionRequest(BaseModel):
+    project: dict = Field(..., description="Full project JSON")
+    rejected_suggestion_id: str
+    feedback: str
+    control_level: str = "ASSISTANT"
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

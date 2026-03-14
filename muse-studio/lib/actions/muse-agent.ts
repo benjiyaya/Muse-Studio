@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { getProjectById } from '@/lib/actions/projects';
 import type { Project, Scene } from '@/lib/types';
 import {
@@ -9,21 +8,66 @@ import {
   buildVideoSuggestions,
 } from '@/lib/muse/suggestion-engine';
 import { createMuseSuggestions } from '@/lib/actions/muse-suggestions';
-import { db } from '@/db';
+import { backendClient } from '@/lib/backend-client';
+import type { NewSuggestion } from '@/lib/muse/suggestion-engine';
 
-async function loadScene(projectId: string, sceneId: string): Promise<Scene | null> {
-  const project = await getProjectById(projectId);
-  if (!project) return null;
-  const scene = project.scenes.find((s) => s.id === sceneId);
-  return scene ?? null;
+/** Convert project to JSON-serializable dict for backend. */
+function projectToDict(project: Project): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(project));
+}
+
+/** Map backend suggestion to NewSuggestion. */
+function toNewSuggestion(s: {
+  type: string;
+  muse: string;
+  message: string;
+  sceneId?: string;
+  actions: string[];
+}): NewSuggestion {
+  return {
+    type: s.type as NewSuggestion['type'],
+    muse: s.muse as NewSuggestion['muse'],
+    message: s.message,
+    sceneId: s.sceneId,
+    actions: s.actions as NewSuggestion['actions'],
+  };
+}
+
+/** Get suggestions from backend agent; fall back to rule-based on error. */
+async function getSuggestionsForProject(project: Project): Promise<NewSuggestion[]> {
+  try {
+    const res = await backendClient.getAgentSuggestions({
+      project: projectToDict(project),
+      control_level: project.museControlLevel,
+    });
+    if (res.error && (!res.suggestions || res.suggestions.length === 0)) {
+      if (res.fallback_suggestions?.length) {
+        return res.fallback_suggestions.map(toNewSuggestion);
+      }
+      throw new Error(res.error);
+    }
+    return (res.suggestions || []).map(toNewSuggestion);
+  } catch {
+    return [
+      ...buildStorySuggestions(project, project.museControlLevel),
+      ...project.scenes.flatMap((scene) =>
+        buildSceneSuggestions(project, scene, project.museControlLevel),
+      ),
+      ...project.scenes
+        .filter((s) => s.videoUrl)
+        .flatMap((scene) =>
+          buildVideoSuggestions(project, scene, project.museControlLevel),
+        ),
+    ];
+  }
 }
 
 export async function generateStorySuggestions(projectId: string): Promise<void> {
   const project = await getProjectById(projectId);
   if (!project) return;
 
-  const suggestions = buildStorySuggestions(project, project.museControlLevel);
-  await createMuseSuggestions(project.id, suggestions);
+  const suggestions = await getSuggestionsForProject(project);
+  await createMuseSuggestions(project.id, suggestions.slice(0, 5));
 }
 
 export async function generateSceneSuggestions(
@@ -35,8 +79,9 @@ export async function generateSceneSuggestions(
   const scene = project.scenes.find((s) => s.id === sceneId);
   if (!scene) return;
 
-  const suggestions = buildSceneSuggestions(project, scene, project.museControlLevel);
-  await createMuseSuggestions(project.id, suggestions);
+  const suggestions = await getSuggestionsForProject(project);
+  const sceneSuggestions = suggestions.filter((s) => s.sceneId === sceneId);
+  await createMuseSuggestions(project.id, sceneSuggestions.slice(0, 5));
 }
 
 export async function generateVideoSuggestions(
@@ -48,35 +93,22 @@ export async function generateVideoSuggestions(
   const scene = project.scenes.find((s) => s.id === sceneId);
   if (!scene) return;
 
-  const suggestions = buildVideoSuggestions(project, scene, project.museControlLevel);
-  await createMuseSuggestions(project.id, suggestions);
+  const suggestions = await getSuggestionsForProject(project);
+  const videoSuggestions = suggestions.filter(
+    (s) => s.sceneId === sceneId && s.muse === 'MOTION_MUSE',
+  );
+  await createMuseSuggestions(project.id, videoSuggestions.slice(0, 5));
 }
 
 /**
  * Regenerate suggestions for a project on demand (used by Refresh button).
- * Currently focuses on storyline + all scenes. Video suggestions are regenerated
- * only for scenes that already have a video_url.
+ * Always uses backend LangGraph agent; falls back to rule-based on error.
  */
 export async function refreshMuseSuggestions(projectId: string): Promise<void> {
   const project = await getProjectById(projectId);
   if (!project) return;
 
-  const controlLevel = project.museControlLevel;
-  const storylineSuggestions = buildStorySuggestions(project, controlLevel);
-
-  const sceneSuggestions = project.scenes.flatMap((scene) =>
-    buildSceneSuggestions(project, scene, controlLevel),
-  );
-
-  const videoScenes = project.scenes.filter((s) => s.videoUrl);
-  const videoSuggestions = videoScenes.flatMap((scene) =>
-    buildVideoSuggestions(project, scene, controlLevel),
-  );
-
-  await createMuseSuggestions(project.id, [
-    ...storylineSuggestions,
-    ...sceneSuggestions,
-    ...videoSuggestions,
-  ]);
+  const suggestions = await getSuggestionsForProject(project);
+  await createMuseSuggestions(project.id, suggestions.slice(0, 10));
 }
 

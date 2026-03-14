@@ -101,6 +101,7 @@ export interface Scene {
   keyframes: Keyframe[];
   videoUrl?: string;
   videoDurationSeconds?: number;
+  activeMuse?: MuseAgent;
   comfyImageWorkflowId?: string;
   comfyVideoWorkflowId?: string;
   createdAt: Date;
