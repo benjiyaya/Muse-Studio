@@ -705,27 +705,4 @@ lsof -ti:8000 | xargs kill -9
 
 ---
 
-## 13. Publishing on GitHub
-
-To publish this app on GitHub:
-
-1. **Create a new repository** on GitHub (do not initialize with a README if you already have one locally).
-
-2. **Ensure nothing sensitive is committed:**
-   - No `.env` or `.env.local` (they are in `.gitignore`)
-   - No API keys or tokens in code
-
-3. **Initial commit and push** (from `v3_src`):
-
-   ```bash
-   git add .
-   git status   # review what will be committed
-   git commit -m "Initial commit: Muse Agent (muse-studio + muse_backend)"
-   git branch -M main
-   git remote add origin https://github.com/benjiyaya/Muse-Studio-Agent.git
-   git push -u origin main
-   ```
-
-4. **Optional:** Add a repository description, topics (e.g. `nextjs`, `fastapi`, `comfyui`, `ai`), and a link to this README in the repo “About” section.
-
 This project is licensed under the MIT License — see [LICENSE](LICENSE).
