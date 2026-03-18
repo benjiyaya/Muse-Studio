@@ -336,11 +336,37 @@ async def generate_comfyui(request: dict[str, Any], background_tasks: Background
         if prompt_id:
             _jobs[job_id]["comfy_prompt_id"] = prompt_id
         if success and out_path is not None:
-            # Return path relative to settings.outputs_path so Next.js can serve it via /api/outputs
+            # Only mark as completed if the file is actually present (prevents "black screen" cases).
+            try:
+                if not out_path.exists() or out_path.stat().st_size <= 0:
+                    _jobs[job_id]["status"] = JobStatus.FAILED
+                    _jobs[job_id]["error"] = (
+                        "ComfyUI reported success but the downloaded output file is missing or empty."
+                    )
+                    _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    return
+            except Exception as exc:  # noqa: BLE001
+                _jobs[job_id]["status"] = JobStatus.FAILED
+                _jobs[job_id]["error"] = f"Failed to validate downloaded output file: {exc}"
+                _jobs[job_id]["updated_at"] = datetime.now(timezone.utc).isoformat()
+                return
+
+            # Return path relative to the shared `outputs/` root so Next.js can serve it via /api/outputs.
+            # Prefer relative_to(settings.outputs_path), but fall back to a robust "after /outputs/" approach
+            # to avoid losing the videos/drafts directory segment.
             try:
                 rel = out_path.relative_to(settings.outputs_path).as_posix()
             except ValueError:
-                rel = out_path.name
+                parts = out_path.as_posix().split("/")
+                last_outputs_idx = None
+                for i in range(len(parts) - 1, -1, -1):
+                    if parts[i].lower() == "outputs":
+                        last_outputs_idx = i
+                        break
+                if last_outputs_idx is not None and last_outputs_idx + 1 < len(parts):
+                    rel = Path(*parts[last_outputs_idx + 1 :]).as_posix()
+                else:
+                    rel = out_path.name
 
             _jobs[job_id]["status"] = JobStatus.COMPLETED
             _jobs[job_id]["output_path"] = rel

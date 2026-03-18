@@ -4,8 +4,6 @@ muse_backend/.env
 # Frontend env (local overrides)
 muse-studio/.env.local
 
-input_test_files/
-
 # Node
 muse-studio/node_modules/
 muse-studio/.next/
@@ -13,15 +11,10 @@ muse-studio/.next/
 # Local / development
 .cursor/
 *.log
-backups/
-enhancement logs/
 .github/
 .skills/
 .skills/frontend-design/
-
 .vscode/
-
-input_test_files/
 
 
 # OS

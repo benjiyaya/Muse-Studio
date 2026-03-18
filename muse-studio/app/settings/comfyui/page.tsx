@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { Workflow, Plus, Trash2, Pencil, Check, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -62,18 +62,26 @@ function RegisterWorkflowForm({ onSaved }: { onSaved: (wf: ComfyWorkflowSummary)
   const [parseError, setParseError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<{ inputs: ReturnType<typeof parseDynamicInputs>; outputs: ReturnType<typeof parseDynamicOutputs> } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  function handleAnalyze() {
+  function analyzeJson(nextJson: string) {
     setParseError(null);
     setParsed(null);
     try {
-      const obj = JSON.parse(json) as Record<string, WorkflowNode>;
+      const obj = JSON.parse(nextJson) as Record<string, WorkflowNode>;
       const inputs = parseDynamicInputs(obj);
       const outputs = parseDynamicOutputs(obj);
       setParsed({ inputs, outputs });
     } catch {
       setParseError('Invalid JSON — please paste a valid ComfyUI API workflow.');
     }
+  }
+
+  function handleAnalyze() {
+    if (!json.trim()) return;
+    analyzeJson(json);
   }
 
   function handleSave() {
@@ -88,20 +96,97 @@ function RegisterWorkflowForm({ onSaved }: { onSaved: (wf: ComfyWorkflowSummary)
     });
   }
 
+  async function setJsonFromFile(file: File) {
+    const filename = file.name ?? 'workflow.json';
+    setUploadedFileName(filename);
+    try {
+      const nextJson = await file.text();
+      setJson(nextJson);
+      analyzeJson(nextJson);
+    } catch {
+      setParseError('Failed to read JSON file.');
+      setParsed(null);
+    }
+  }
+
+  function handlePickFile() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleFiles(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith('.json')) {
+      setParseError('Please upload a .json ComfyUI workflow file.');
+      setParsed(null);
+      return;
+    }
+    await setJsonFromFile(file);
+  }
+
   return (
     <section className="rounded-2xl border border-white/8 bg-white/3 p-5 space-y-4">
       <h2 className="text-sm font-semibold">Analyze &amp; Register Workflow</h2>
 
-      {/* JSON textarea */}
-      <div className="space-y-1.5">
+      {/* JSON upload */}
+      <div className="space-y-2">
         <label className="text-xs font-medium text-muted-foreground">Workflow JSON</label>
-        <Textarea
-          value={json}
-          onChange={(e) => { setJson(e.target.value); setParsed(null); setParseError(null); }}
-          rows={6}
-          placeholder='Paste your ComfyUI API workflow JSON here…'
-          className="font-mono text-xs resize-none bg-black/20 border-white/10"
-        />
+
+        <div
+          className={[
+            'rounded-xl border border-dashed px-4 py-5 transition-colors',
+            isDragging ? 'border-violet-500/60 bg-violet-500/10' : 'border-white/10 bg-black/10',
+          ].join(' ')}
+          onClick={handlePickFile}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            handleFiles(e.dataTransfer.files);
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label="Upload ComfyUI workflow JSON"
+        >
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 h-8 w-8 rounded-lg bg-violet-500/15 text-violet-300 flex items-center justify-center">
+              <Workflow className="h-4 w-4" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">Upload workflow JSON</p>
+              <p className="text-xs text-muted-foreground/70">
+                Drag and drop a <span className="font-mono">.json</span> file, or click to select.
+              </p>
+              {uploadedFileName && (
+                <p className="text-xs text-muted-foreground/80">Loaded: {uploadedFileName}</p>
+              )}
+            </div>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+        </div>
+
+        {json.trim() && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-medium text-muted-foreground/70">JSON preview</p>
+            <Textarea
+              value={json}
+              readOnly
+              rows={6}
+              className="font-mono text-xs resize-none bg-black/20 border-white/10 max-h-40 overflow-y-auto"
+            />
+          </div>
+        )}
       </div>
 
       <Button variant="outline" size="sm" onClick={handleAnalyze} disabled={!json.trim()}>

@@ -540,6 +540,29 @@ export function KanbanBoard({
         scene={comfyGenerateScene}
         kind={comfyGenerateKind}
         workflowId={comfyGenerateWorkflowId}
+        workflows={comfyGenerateKind === 'video' ? comfyVideoWorkflows : comfyImageWorkflows}
+        onWorkflowChange={async (nextWorkflowId) => {
+          if (!comfyGenerateScene || !comfyGenerateKind) return;
+          const sceneId = comfyGenerateScene.id;
+
+          try {
+            if (comfyGenerateKind === 'video') {
+              await setSceneComfyVideoWorkflow(sceneId, nextWorkflowId);
+              setScenes((prev) =>
+                prev.map((s) => (s.id === sceneId ? { ...s, comfyVideoWorkflowId: nextWorkflowId } : s)),
+              );
+            } else {
+              await setSceneComfyImageWorkflow(sceneId, nextWorkflowId);
+              setScenes((prev) =>
+                prev.map((s) => (s.id === sceneId ? { ...s, comfyImageWorkflowId: nextWorkflowId } : s)),
+              );
+            }
+            setComfyGenerateWorkflowId(nextWorkflowId);
+          } catch (err) {
+            console.error('Failed to update ComfyUI workflow for scene:', err);
+            toast('Workflow update failed', { description: 'Please try selecting the workflow again.', duration: 5000 });
+          }
+        }}
         characters={characters}
         onClose={() => {
           setComfyGenerateOpen(false);

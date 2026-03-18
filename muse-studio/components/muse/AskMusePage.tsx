@@ -303,7 +303,7 @@ export function AskMusePage({ initialContext, projectId, projects }: AskMusePage
         )}
 
       <main className={cn(
-        'flex flex-1 flex-col min-h-0 max-w-4xl w-full mx-auto px-4 py-6',
+        'flex flex-1 flex-col min-h-0 w-[90%] max-w-5xl mx-auto px-4 py-6',
         'md:pt-6 pt-20',
       )}>
         {/* Page title */}
@@ -374,7 +374,7 @@ export function AskMusePage({ initialContext, projectId, projects }: AskMusePage
         )}
 
         {/* Message list */}
-        <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-white/8 bg-white/5 p-4 space-y-4">
+        <div className="flex-1 min-h-0 w-full overflow-y-auto rounded-xl border border-white/8 bg-white/5 p-4 space-y-4">
           {historyError && (
             <p className="text-xs text-destructive text-center">
               {historyError}
@@ -398,10 +398,10 @@ export function AskMusePage({ initialContext, projectId, projects }: AskMusePage
               className={cn(
                 'flex gap-2 rounded-lg p-3 text-sm',
                 msg.role === 'user'
-                  ? 'bg-white/5 border border-white/8 ml-4'
+                  ? 'bg-white/5 border border-white/8 ml-2'
                   : msg.muse
-                    ? `${MUSE_CONFIG[msg.muse].bgClass} ${MUSE_CONFIG[msg.muse].borderClass} border mr-4`
-                    : 'bg-white/5 border border-white/8 mr-4',
+                    ? `${MUSE_CONFIG[msg.muse].bgClass} ${MUSE_CONFIG[msg.muse].borderClass} border mr-2`
+                    : 'bg-white/5 border border-white/8 mr-2',
               )}
             >
               {MsgIcon && (

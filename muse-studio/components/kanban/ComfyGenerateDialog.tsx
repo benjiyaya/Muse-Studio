@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { updateSceneStatus, createKeyframe, updateKeyframeOutput } from '@/lib/actions/scenes';
 import type { Scene, Character } from '@/lib/types';
-import type { ComfyWorkflowFull } from '@/lib/actions/comfyui';
+import type { ComfyWorkflowFull, ComfyWorkflowSummary } from '@/lib/actions/comfyui';
 import {
   parseDynamicInputs,
   parseDynamicOutputs,
@@ -24,6 +24,8 @@ interface ComfyGenerateDialogProps {
   scene: Scene | null;
   kind: 'image' | 'video' | null;
   workflowId: string | null;
+  workflows: ComfyWorkflowSummary[];
+  onWorkflowChange?: (workflowId: string) => Promise<void> | void;
   onClose: () => void;
   onGenerationStarted?: (sceneId: string, jobId: string) => void;
   onWorkflowInvalid?: (sceneId: string, kind: 'image' | 'video') => void;
@@ -45,6 +47,8 @@ export function ComfyGenerateDialog({
   scene,
   kind,
   workflowId,
+  workflows,
+  onWorkflowChange,
   onClose,
   onGenerationStarted,
   onWorkflowInvalid,
@@ -54,6 +58,7 @@ export function ComfyGenerateDialog({
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [workflow, setWorkflow] = useState<ComfyWorkflowFull | null>(null);
+  const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(workflowId);
   const [inputs, setInputs] = useState<ComfyDynamicInput[]>([]);
   const [outputs, setOutputs] = useState<ComfyDynamicOutput[]>([]);
   const [inputValues, setInputValues] = useState<Record<string, string | number>>({});
@@ -72,9 +77,13 @@ export function ComfyGenerateDialog({
   const firstErrorRef = useRef<HTMLDivElement | null>(null);
 
   // ── Load workflow on open ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isOpen) return;
+    setActiveWorkflowId(workflowId);
+  }, [isOpen, workflowId]);
 
   useEffect(() => {
-    if (!isOpen || !workflowId || !scene || !kind) return;
+    if (!isOpen || !activeWorkflowId || !scene || !kind) return;
 
     setPhase('loading');
     setWorkflow(null);
@@ -92,7 +101,7 @@ export function ComfyGenerateDialog({
 
     (async () => {
       try {
-        const res = await fetch(`/api/comfy-workflow/${workflowId}`);
+        const res = await fetch(`/api/comfy-workflow/${activeWorkflowId}`);
         const data = await res.json();
 
         if (!res.ok) {
@@ -176,7 +185,7 @@ export function ComfyGenerateDialog({
         setPhase('error');
       }
     })();
-  }, [isOpen, workflowId, scene, kind, onWorkflowInvalid]);
+  }, [isOpen, activeWorkflowId, scene, kind, onWorkflowInvalid]);
 
   // ── Cleanup polling on close ───────────────────────────────────────────────
 
@@ -306,7 +315,7 @@ export function ComfyGenerateDialog({
   // ── Generate ───────────────────────────────────────────────────────────────
 
   async function handleGenerate() {
-    if (!scene || !workflowId) return;
+    if (!scene || !activeWorkflowId) return;
     if (!validateInputs()) return;
 
     setPhase('submitting');
@@ -323,7 +332,7 @@ export function ComfyGenerateDialog({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          workflow_id: workflowId,
+          workflow_id: activeWorkflowId,
           scene_id: scene.id,
           kind,
           inputValues: mergedValues,
@@ -450,6 +459,38 @@ export function ComfyGenerateDialog({
               {phase === 'loading' && (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="h-6 w-6 animate-spin text-violet-400" />
+                </div>
+              )}
+
+              {/* Workflow selector (so users can switch without closing dialog) */}
+              {kind && workflows.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-medium text-muted-foreground">
+                    {kind === 'image' ? 'ComfyUI image workflow' : 'ComfyUI video workflow'}
+                  </label>
+                  <select
+                    value={activeWorkflowId ?? ''}
+                    onChange={async (e) => {
+                      const nextId = e.target.value || null;
+                      if (!nextId) return;
+                      if (phase === 'submitting' || phase === 'polling') return;
+                      try {
+                        setActiveWorkflowId(nextId);
+                        setError(null);
+                        await onWorkflowChange?.(nextId);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Failed to update workflow.');
+                      }
+                    }}
+                    disabled={phase === 'loading' || phase === 'submitting' || phase === 'polling'}
+                    className="w-full rounded-lg border border-white/12 bg-black/40 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-violet-500/40"
+                  >
+                    {workflows.map((wf) => (
+                      <option key={wf.id} value={wf.id}>
+                        {wf.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 

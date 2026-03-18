@@ -1,7 +1,7 @@
 'use client';
 
 import { X, Video, ImageIcon, FileText } from 'lucide-react';
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Scene } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,12 @@ interface FinalSceneDialogProps {
 
 export function FinalSceneDialog({ isOpen, scene, onClose }: FinalSceneDialogProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoLoadError, setVideoLoadError] = useState(false);
+  const videoUrl = scene?.videoUrl ?? null;
+
+  useEffect(() => {
+    setVideoLoadError(false);
+  }, [videoUrl]);
 
   if (!isOpen || !scene) return null;
 
@@ -22,8 +28,6 @@ export function FinalSceneDialog({ isOpen, scene, onClose }: FinalSceneDialogPro
   const prompt =
     (approved ?? fallbackKf)?.generationParams.prompt ??
     scene.description;
-
-  const videoUrl = scene.videoUrl;
 
   return (
     <div
@@ -64,7 +68,7 @@ export function FinalSceneDialog({ isOpen, scene, onClose }: FinalSceneDialogPro
         {/* Main content: split layout for video + details */}
         <div className="flex flex-1 flex-col md:flex-row border-b border-white/6">
           {/* Video area */}
-          <div className="md:w-2/3 border-b md:border-b-0 md:border-r border-white/6 bg-black/40 flex items-center justify-center">
+          <div className="md:w-2/3 border-b md:border-b-0 md:border-r border-white/6 bg-black/40 flex items-center justify-center relative">
             {videoUrl ? (
               // eslint-disable-next-line jsx-a11y/media-has-caption
               <video
@@ -74,6 +78,7 @@ export function FinalSceneDialog({ isOpen, scene, onClose }: FinalSceneDialogPro
                 controls
                 loop
                 playsInline
+                onError={() => setVideoLoadError(true)}
               />
             ) : (
               <div className="flex flex-col items-center gap-3 text-muted-foreground/40 py-12">
@@ -81,6 +86,13 @@ export function FinalSceneDialog({ isOpen, scene, onClose }: FinalSceneDialogPro
                 <span className="text-xs">No final video available</span>
               </div>
             )}
+            {videoUrl && videoLoadError ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-4 text-center">
+                <p className="text-xs text-muted-foreground">
+                  Final video couldn&apos;t be decoded.
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {/* Details */}

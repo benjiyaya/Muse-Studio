@@ -12,6 +12,8 @@ const MIME_TYPES: Record<string, string> = {
   '.gif':  'image/gif',
   '.mp4':  'video/mp4',
   '.webm': 'video/webm',
+  '.mov':  'video/quicktime',
+  '.mkv':  'video/x-matroska',
 };
 
 interface RouteParams {

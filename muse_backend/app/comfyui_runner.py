@@ -100,7 +100,7 @@ class ComfyUIRunner:
 
             # 2) Wait for execution to finish (websocket if available, else HTTP poll)
             try:
-                await self._wait_for_completion(prompt_id, client_id, on_progress)
+                await self._wait_for_completion(prompt_id, client_id, on_progress, kind)
             except Exception as exc:  # noqa: BLE001
                 # region agent log
                 _agent_log(
@@ -114,7 +114,32 @@ class ComfyUIRunner:
 
             # 3) Fetch history and download the first output file
             try:
-                output_path = await self._download_first_output(client, prompt_id, kind, output_dir)
+                if kind == "video":
+                    # ComfyUI can expose /history/<prompt_id> before all outputs are fully written.
+                    # If we download too early we might grab only a thumbnail PNG.
+                    last_exc: Optional[Exception] = None
+                    output_path: Optional[Path] = None
+                    for attempt in range(1, 6):
+                        try:
+                            output_path = await self._download_first_output(
+                                client, prompt_id, kind, output_dir
+                            )
+                            break
+                        except RuntimeError as exc:
+                            last_exc = exc
+                            if "No playable video output found" not in str(exc):
+                                raise
+                            if on_progress:
+                                await on_progress(
+                                    95,
+                                    f"Waiting for video output (attempt {attempt}/5)...",
+                                )
+                            await asyncio.sleep(1.5 * attempt)
+
+                    if output_path is None:
+                        raise last_exc or RuntimeError("Failed to download video output after retries.")
+                else:
+                    output_path = await self._download_first_output(client, prompt_id, kind, output_dir)
             except Exception as exc:  # noqa: BLE001
                 # region agent log
                 _agent_log(
@@ -142,6 +167,7 @@ class ComfyUIRunner:
         prompt_id: str,
         client_id: str,
         on_progress: Optional[OnProgress],
+        kind: str,
     ) -> None:
         """
         Wait until ComfyUI has written history for this prompt_id.
@@ -151,15 +177,21 @@ class ComfyUIRunner:
         file is ultimately written. Instead, we rely solely on the HTTP
         /history/{prompt_id} endpoint and then inspect the recorded outputs.
         """
-        await self._poll_until_done(prompt_id, on_progress)
+        await self._poll_until_done(prompt_id, on_progress, kind)
 
     async def _poll_until_done(
         self,
         prompt_id: str,
         on_progress: Optional[OnProgress],
+        kind: str,
     ) -> None:
         """Simple HTTP polling fallback when websockets is unavailable."""
         async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0)) as client:
+            # Avoid returning too early: for some ComfyUI graphs, history appears
+            # before the final video payload (e.g. a PNG thumbnail) is written.
+            VIDEO_EXTS = (".mp4", ".mov", ".webm", ".mkv")
+            start_ts = time.time()
+            last_wait_log_ts = 0.0
             while True:
                 resp = await client.get(f"{self.base_url}/history/{prompt_id}")
                 if resp.status_code == 404:
@@ -173,7 +205,89 @@ class ComfyUIRunner:
                     await asyncio.sleep(1.5)
                     continue
 
-                # Presence of history implies completion
+                if kind == "video":
+                    top = next(iter(history.values()), {}) or {}
+                    outputs = top.get("outputs") or {}
+
+                    def _is_video_record(rec: Any) -> bool:
+                        if not isinstance(rec, dict):
+                            return False
+                        filename = rec.get("filename")
+                        fmt = rec.get("format")
+                        if isinstance(fmt, str) and fmt.startswith("video/"):
+                            return True
+                        if isinstance(filename, str) and filename.lower().endswith(VIDEO_EXTS):
+                            return True
+                        return False
+
+                    found_video = False
+                    if isinstance(outputs, dict):
+                        for node_data in outputs.values():
+                            if not isinstance(node_data, dict):
+                                continue
+                            if any(_is_video_record(r) for r in (node_data.get("videos") or []) if r is not None):
+                                found_video = True
+                                break
+                            if any(_is_video_record(r) for r in (node_data.get("images") or []) if r is not None):
+                                found_video = True
+                                break
+
+                    if not found_video:
+                        if time.time() - start_ts > 120:
+                            # Give up after a reasonable time; download stage will fail with details.
+                            if on_progress:
+                                await on_progress(98, "ComfyUI history written but no video detected (timeout).")
+                            return
+                        if on_progress:
+                            await on_progress(95, "Waiting for ComfyUI video output...")
+                        # Limited debug logging so we can inspect what history contains
+                        # while waiting (e.g. thumbnail PNGs vs real mp4).
+                        now_ts = time.time()
+                        if now_ts - last_wait_log_ts > 10:
+                            last_wait_log_ts = now_ts
+                            try:
+                                candidates: list[str] = []
+                                if isinstance(outputs, dict):
+                                    for node_data in outputs.values():
+                                        if not isinstance(node_data, dict):
+                                            continue
+                                        for rec in (node_data.get("videos") or []):
+                                            if isinstance(rec, dict):
+                                                fn = rec.get("filename")
+                                                fmt = rec.get("format")
+                                                if isinstance(fn, str):
+                                                    candidates.append(
+                                                        f"{fn}({fmt or 'no-format'})"
+                                                    )
+                                        for rec in (node_data.get("images") or []):
+                                            if isinstance(rec, dict):
+                                                fn = rec.get("filename")
+                                                fmt = rec.get("format")
+                                                if isinstance(fn, str):
+                                                    candidates.append(
+                                                        f"{fn}({fmt or 'no-format'})"
+                                                    )
+                                        if len(candidates) >= 12:
+                                            break
+                                        if len(candidates) >= 12:
+                                            break
+                                _agent_log(
+                                    "comfyui_waiting_for_video_output",
+                                    {
+                                        "prompt_id": prompt_id,
+                                        "elapsed_sec": round(now_ts - start_ts, 1),
+                                        "candidates": candidates[:12],
+                                    },
+                                    "comfyui_runner.py:_poll_until_done",
+                                    "H1",
+                                )
+                            except Exception:
+                                # Logging must never break generation.
+                                pass
+                        await asyncio.sleep(2.0)
+                        continue
+
+                # Presence of history implies completion (or we detected video-like output).
                 if on_progress:
                     await on_progress(100, "ComfyUI history ready.")
                 return
@@ -210,25 +324,112 @@ class ComfyUIRunner:
             images_list = node_data.get("images") or []
 
             if isinstance(videos_list, list):
-                file_records.extend(videos_list)
+                for r in videos_list:
+                    if isinstance(r, dict):
+                        file_records.append({**r, "__muse_source": "videos"})
             if isinstance(images_list, list):
-                file_records.extend(images_list)
+                for r in images_list:
+                    if isinstance(r, dict):
+                        file_records.append({**r, "__muse_source": "images"})
 
         if not file_records:
             raise RuntimeError("No outputs found in ComfyUI history.")
 
-        # Prefer true video files when kind == "video"
-        rec = file_records[0]
+        # Prefer true video files when kind == "video".
+        # Some ComfyUI nodes also emit a PNG "thumbnail" next to the real video;
+        # downloading that PNG into outputs/videos breaks the HTML5 <video> player.
         if kind == "video":
             VIDEO_EXTS = (".mp4", ".mov", ".webm", ".mkv")
             video_recs = [
                 r for r in file_records
-                if isinstance(r, dict)
-                and isinstance(r.get("filename"), str)
-                and r["filename"].lower().endswith(VIDEO_EXTS)
+                if isinstance(r.get("filename"), str) and r["filename"].lower().endswith(VIDEO_EXTS)
             ]
             if video_recs:
-                rec = video_recs[0]
+                # Prefer explicit "video/*" formats (some nodes may emit thumbnails)
+                # and only then fall back to extension-based selection.
+                by_format = [
+                    r
+                    for r in video_recs
+                    if isinstance(r.get("format"), str) and str(r["format"]).startswith("video/")
+                ]
+                rec = by_format[0] if by_format else video_recs[0]
+            else:
+                # Fallback: probe /view outputs and choose the one that actually returns video/*.
+                # This handles cases where ComfyUI's history record filename isn't reliably
+                # suffixed with a video extension.
+                preferred = sorted(
+                    file_records,
+                    key=lambda r: 0 if r.get("__muse_source") == "videos" else 1,
+                )
+                last_found: list[str] = []
+                for r in preferred:
+                    if not isinstance(r, dict) or not isinstance(r.get("filename"), str):
+                        continue
+                    params = {
+                        "filename": r["filename"],
+                        "subfolder": r.get("subfolder", ""),
+                        "type": r.get("type", "output"),
+                    }
+                    download_resp = await client.get(f"{self.base_url}/view", params=params)
+                    content_type = (download_resp.headers.get("content-type") or "").lower()
+                    last_found.append(f"{r['filename']}({content_type or 'no-content-type'})")
+
+                    if content_type.startswith("video/"):
+                        output_dir.mkdir(parents=True, exist_ok=True)
+                        out_path = output_dir / r["filename"]
+                        out_path.write_bytes(download_resp.content)
+                        try:
+                            _agent_log(
+                                "comfyui_output_selected_by_content_type",
+                                {
+                                    "prompt_id": prompt_id,
+                                    "kind": kind,
+                                    "filename": r.get("filename"),
+                                    "subfolder": r.get("subfolder", ""),
+                                    "source": r.get("__muse_source"),
+                                    "content_type": content_type,
+                                },
+                                "comfyui_runner.py:_download_first_output",
+                                "H1",
+                            )
+                        except Exception:
+                            pass
+                        return out_path
+
+                found = last_found[:10]
+                raise RuntimeError(
+                    "No playable video output found in ComfyUI history; refuses to download non-video outputs. "
+                    f"Probed: {', '.join(found)}"
+                )
+        elif kind == "image":
+            # For images, prefer common raster formats but still fall back safely.
+            IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".gif")
+            image_recs = [
+                r for r in file_records
+                if isinstance(r.get("filename"), str) and r["filename"].lower().endswith(IMAGE_EXTS)
+            ]
+            rec = image_recs[0] if image_recs else file_records[0]
+        else:
+            # Unknown kind; keep prior behavior.
+            rec = file_records[0]
+
+        # Debug log: which record we selected to download.
+        try:
+            _agent_log(
+                "comfyui_output_selected",
+                {
+                    "prompt_id": prompt_id,
+                    "kind": kind,
+                    "filename": rec.get("filename"),
+                    "subfolder": rec.get("subfolder", ""),
+                    "source": rec.get("__muse_source"),
+                },
+                "comfyui_runner.py:_download_first_output",
+                "H1",
+            )
+        except Exception:
+            # Logging must never break generation.
+            pass
         filename = rec.get("filename")
         subfolder = rec.get("subfolder", "")
         file_type = rec.get("type", "output")

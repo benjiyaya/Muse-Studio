@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -41,11 +41,17 @@ export function VideoReviewDialog({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [phase, setPhase] = useState<ActionPhase>('idle');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState(false);
+
+  const videoUrl = scene?.videoUrl ?? null;
+  const busy = phase !== 'idle';
+
+  useEffect(() => {
+    setVideoLoadError(false);
+    setIsPlaying(false);
+  }, [videoUrl]);
 
   if (!isOpen || !scene) return null;
-
-  const videoUrl = scene.videoUrl ?? null;
-  const busy = phase !== 'idle';
 
   function togglePlay() {
     const v = videoRef.current;
@@ -167,6 +173,13 @@ export function VideoReviewDialog({
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
                 onEnded={() => setIsPlaying(false)}
+                onError={() => {
+                  if (videoLoadError) return;
+                  setVideoLoadError(true);
+                  toast.error('Video failed to load', {
+                    description: 'The output file may be missing or corrupted. Try "Redo Video".',
+                  });
+                }}
               />
               {/* Play/pause overlay */}
               <button
@@ -184,6 +197,13 @@ export function VideoReviewDialog({
                   )}
                 </div>
               </button>
+              {videoLoadError ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 p-4 text-center">
+                  <p className="text-xs text-muted-foreground">
+                    Video couldn&apos;t be decoded. Try generating again.
+                  </p>
+                </div>
+              ) : null}
             </>
           ) : (
             <div className="flex flex-col items-center gap-3 text-muted-foreground/40">
