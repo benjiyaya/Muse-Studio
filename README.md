@@ -505,6 +505,7 @@ Once both backend and frontend are running and ComfyUI is configured:
   - On the kanban board, assign:
     - An **image workflow** per scene for stills.
     - A **video workflow** per scene for motion.
+  - For **video workflows**, ensure the workflow's **(Output)** node uses the native `SaveVideo` node from comfy-core, so the backend downloads an actual playable `.mp4` (not a PNG thumbnail).
   - Use the **Generate with ComfyUI** dialogs on scenes or character sheets to run those workflows, then review results.
 
 - **Muse suggestions**
