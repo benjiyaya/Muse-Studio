@@ -1,0 +1,27 @@
+{
+  "name": "remotion-film",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "write-fixture": "node scripts/make-fixture-json.mjs",
+    "studio": "remotion studio src/index.ts",
+    "render:fixture": "npm run write-fixture && remotion render src/index.ts FilmMaster out/fixture-out.mp4 --props=timeline.fixtures.json"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@remotion/transitions": "4.0.228",
+    "@remotion/cli": "^4.0.228",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.228"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.6.3"
+  }
+}
