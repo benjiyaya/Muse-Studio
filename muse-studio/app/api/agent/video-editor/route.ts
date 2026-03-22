@@ -16,7 +16,11 @@ export async function POST(request: Request) {
     }
 
     const resolvedMode =
-      mode === 'SMART_EDIT' ? 'SMART_EDIT' : 'SIMPLE_STITCH';
+      mode === 'SMART_EDIT_REMOTION'
+        ? 'SMART_EDIT_REMOTION'
+        : mode === 'SMART_EDIT'
+          ? 'SMART_EDIT'
+          : 'SIMPLE_STITCH';
 
     const project = await getProjectById(projectId);
     if (!project) {

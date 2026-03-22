@@ -540,6 +540,7 @@ export function KanbanBoard({
         scene={comfyGenerateScene}
         kind={comfyGenerateKind}
         workflowId={comfyGenerateWorkflowId}
+        projectId={projectId}
         workflows={comfyGenerateKind === 'video' ? comfyVideoWorkflows : comfyImageWorkflows}
         onWorkflowChange={async (nextWorkflowId) => {
           if (!comfyGenerateScene || !comfyGenerateKind) return;

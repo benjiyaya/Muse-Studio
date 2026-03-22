@@ -7,6 +7,8 @@ interface ComfyGeneratePayload {
   workflow_id: string;
   scene_id: string;
   kind: 'image' | 'video';
+  /** When scene_id is playground, scopes outputs to drafts/playground/{project_id}/ */
+  project_id?: string | null;
   /** User-provided input values keyed by nodeId */
   inputValues: Record<string, string | number | null>;
 }
@@ -71,7 +73,7 @@ function patchWorkflow(
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ComfyGeneratePayload;
-    const { workflow_id, scene_id, kind, inputValues } = body;
+    const { workflow_id, scene_id, kind, inputValues, project_id } = body;
 
     if (!workflow_id || !scene_id || !kind) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -102,6 +104,7 @@ export async function POST(req: NextRequest) {
         kind,
         workflow_name: workflowRecord.name,
         workflow: patchedWorkflow,
+        ...(project_id ? { project_id } : {}),
       }),
     });
 

@@ -13,6 +13,8 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@radix-ui/react-visually-hidden": "^1.2.4",
+    "@remotion/player": "^4.0.228",
+    "@remotion/transitions": "4.0.228",
     "better-sqlite3": "^12.6.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -21,6 +23,7 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "remotion": "^4.0.228",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0"
   },

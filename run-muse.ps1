@@ -15,6 +15,9 @@ if (-not (Test-Path $BackendDir)) { Write-Error "muse_backend not found at $Back
 
 Write-Host "[1/2] Starting Python Backend..."
 $backendScript = @"
+# Polished export (Remotion): scene clips load from Muse Studio over HTTP (default Next dev port).
+# Change if npm run dev uses another host or port.
+`$env:MUSE_VIDEO_HTTP_BASE = 'http://127.0.0.1:3000'
 Set-Location -LiteralPath '$BackendDir'
 if (Test-Path '.venv\Scripts\Activate.ps1') {
     & '.venv\Scripts\Activate.ps1'

@@ -18,6 +18,7 @@ import {
   type ComfyDynamicOutput,
   type WorkflowNode,
 } from '@/lib/comfy-parser';
+import { ProjectLibraryStrip } from '@/components/media/ProjectLibraryStrip';
 
 interface ComfyGenerateDialogProps {
   isOpen: boolean;
@@ -25,6 +26,8 @@ interface ComfyGenerateDialogProps {
   kind: 'image' | 'video' | null;
   workflowId: string | null;
   workflows: ComfyWorkflowSummary[];
+  /** Enables “project library” thumbnails (playground + promoted drafts). */
+  projectId?: string;
   onWorkflowChange?: (workflowId: string) => Promise<void> | void;
   onClose: () => void;
   onGenerationStarted?: (sceneId: string, jobId: string) => void;
@@ -48,6 +51,7 @@ export function ComfyGenerateDialog({
   kind,
   workflowId,
   workflows,
+  projectId,
   onWorkflowChange,
   onClose,
   onGenerationStarted,
@@ -655,6 +659,18 @@ export function ComfyGenerateDialog({
                                   </div>
                                 </div>
                               )}
+
+                            {projectId && (
+                              <ProjectLibraryStrip
+                                projectId={projectId}
+                                filter="image"
+                                onPick={(item) => {
+                                  if (item.kind !== 'image') return;
+                                  setInputValue(inp.nodeId, `/api/outputs/${item.path}`);
+                                }}
+                                className="pt-1"
+                              />
+                            )}
                           </div>
                         )}
 
@@ -791,6 +807,36 @@ export function ComfyGenerateDialog({
                                   </div>
                                 </div>
                               )}
+
+                            {projectId && (
+                              <ProjectLibraryStrip
+                                projectId={projectId}
+                                filter="image"
+                                onPick={async (item) => {
+                                  if (item.kind !== 'image') return;
+                                  setFilePaths((prev) => ({ ...prev, [inp.nodeId]: item.path }));
+                                  clearFieldError(inp.nodeId);
+                                  try {
+                                    const res = await fetch(`/api/outputs/${item.path}`);
+                                    const blob = await res.blob();
+                                    const reader = new FileReader();
+                                    reader.onload = (e) => {
+                                      setFileDataUrls((prev) => ({
+                                        ...prev,
+                                        [inp.nodeId]: e.target?.result as string,
+                                      }));
+                                    };
+                                    reader.readAsDataURL(blob);
+                                  } catch {
+                                    setFileDataUrls((prev) => ({
+                                      ...prev,
+                                      [inp.nodeId]: `/api/outputs/${item.path}`,
+                                    }));
+                                  }
+                                }}
+                                className="pt-1"
+                              />
+                            )}
                           </div>
                         )}
 

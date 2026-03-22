@@ -4,7 +4,7 @@ import { AppHeader } from '@/components/layout/AppHeader';
 import { getProjectById } from '@/lib/actions/projects';
 import { getLLMSettings } from '@/lib/actions/settings';
 import { listComfyWorkflows } from '@/lib/actions/comfyui';
-import { listCharacters } from '@/lib/actions/characters';
+import { seedCharactersFromStorylineIfEmpty } from '@/lib/actions/characters';
 import { CharactersPageClient } from '@/components/characters/CharactersPageClient';
 import { ChevronLeft } from 'lucide-react';
 
@@ -17,14 +17,15 @@ interface PageProps {
 export default async function ProjectCharactersPage({ params }: PageProps) {
   const { id } = await params;
 
-  const [project, llmSettings, allWorkflows, characters] = await Promise.all([
+  const [project, llmSettings, allWorkflows] = await Promise.all([
     getProjectById(id),
     getLLMSettings(),
     listComfyWorkflows(),
-    listCharacters(id),
   ]);
 
   if (!project) notFound();
+
+  const characters = await seedCharactersFromStorylineIfEmpty(id, project.storyline);
 
   const comfyImageWorkflows = allWorkflows.filter((w: { kind: string }) => w.kind === 'image');
 

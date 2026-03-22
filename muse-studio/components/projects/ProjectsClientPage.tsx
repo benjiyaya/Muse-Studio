@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Film, Sparkles } from 'lucide-react';
+import { Plus, Film, Sparkles, FlaskConical } from 'lucide-react';
 import { AppHeader } from '@/components/layout/AppHeader';
 import { ProjectCard } from '@/components/projects/ProjectCard';
 import { NewProjectDialog } from '@/components/projects/NewProjectDialog';
@@ -42,13 +43,21 @@ export function ProjectsClientPage({ initialProjects }: ProjectsClientPageProps)
               Your creative partner, not your replacement.
             </p>
           </div>
-          <Button
-            onClick={() => setNewProjectOpen(true)}
-            className="shrink-0 bg-violet-600 hover:bg-violet-500 gap-2 font-medium muse-glow"
-          >
-            <Plus className="h-4 w-4" />
-            New Project
-          </Button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Button variant="outline" size="default" className="gap-2 border-white/15" asChild>
+              <Link href="/playground">
+                <FlaskConical className="h-4 w-4" />
+                Media playground
+              </Link>
+            </Button>
+            <Button
+              onClick={() => setNewProjectOpen(true)}
+              className="gap-2 bg-violet-600 font-medium hover:bg-violet-500 muse-glow"
+            >
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
+          </div>
         </div>
 
         {/* Stats row */}

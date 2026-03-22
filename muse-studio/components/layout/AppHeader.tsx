@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Film, Sparkles, ChevronRight, Settings, LayoutGrid, BookOpen } from 'lucide-react';
+import { Film, Sparkles, ChevronRight, Settings, LayoutGrid, BookOpen, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -75,6 +75,7 @@ export function AppHeader({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [router]);
   const isProjectView = !!projectTitle;
+  const isPlayground = pathname === '/playground';
 
   async function handleDismiss(id: string) {
     await dismissSuggestion(id);
@@ -210,6 +211,31 @@ export function AppHeader({
             onRefresh={projectId ? handleRefreshSuggestions : undefined}
             scenes={overviewProject?.scenes ?? []}
           />
+
+          {/* Playground (global) */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'h-9 w-9 rounded-xl hover:bg-white/8',
+                  isPlayground && 'bg-violet-500/15 text-violet-300',
+                )}
+                asChild
+              >
+                <Link href="/playground" aria-label="Media playground">
+                  <FlaskConical
+                    className={cn(
+                      'h-4 w-4',
+                      isPlayground ? 'text-violet-300' : 'text-muted-foreground',
+                    )}
+                  />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Media playground</TooltipContent>
+          </Tooltip>
 
           {/* Nav: Projects */}
           {!isProjectView && (

@@ -4,8 +4,11 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Film, Loader2, CheckCircle2, AlertCircle, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { FilmCutPreview } from '@/components/export/FilmCutPreview';
+import { FilmTimelineEditor } from '@/components/export/FilmTimelineEditor';
+import type { FilmTimelineJSON } from '@/types/film-timeline';
 
-type ExportMode = 'SIMPLE_STITCH' | 'SMART_EDIT';
+type ExportMode = 'SIMPLE_STITCH' | 'SMART_EDIT' | 'SMART_EDIT_REMOTION';
 
 interface ExportFilmWizardProps {
   projectId: string;
@@ -21,9 +24,12 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
   const [result, setResult] = useState<{
     status: string;
     outputPath?: string;
+    /** Bumps on each new file so the final `<video>` bypasses browser cache when the path is unchanged. */
+    outputMediaNonce?: number;
     totalDuration?: number;
     clipCount?: number;
     error?: string;
+    filmTimeline?: FilmTimelineJSON;
   } | null>(null);
 
   useEffect(() => {
@@ -36,7 +42,7 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
     setResult(null);
     setLogLines([]);
 
-    const useStream = mode === 'SMART_EDIT';
+    const useStream = mode === 'SMART_EDIT' || mode === 'SMART_EDIT_REMOTION';
 
     try {
       if (useStream) {
@@ -66,16 +72,31 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               try {
-                const data = JSON.parse(line.slice(6)) as { type?: string; text?: string; status?: string };
+                const data = JSON.parse(line.slice(6)) as {
+                  type?: string;
+                  text?: string;
+                  status?: string;
+                  outputPath?: string;
+                  totalDuration?: number;
+                  clipCount?: number;
+                  error?: string;
+                  filmTimeline?: FilmTimelineJSON;
+                  film_timeline?: FilmTimelineJSON;
+                };
                 if (data.type === 'log' && typeof data.text === 'string') {
                   setLogLines((prev) => [...prev, data.text!]);
                 } else if (typeof data.status === 'string') {
+                  const ft = data.filmTimeline ?? data.film_timeline;
+                  const completed =
+                    data.status === 'completed' && typeof data.outputPath === 'string';
                   setResult({
                     status: data.status ?? 'failed',
                     outputPath: data.outputPath,
+                    outputMediaNonce: completed ? Date.now() : undefined,
                     totalDuration: data.totalDuration,
                     clipCount: data.clipCount,
                     error: data.error,
+                    filmTimeline: ft,
                   });
                 }
               } catch {
@@ -95,12 +116,18 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
           setResult({ status: 'failed', error: data?.error ?? 'Export failed.' });
           return;
         }
+        const ft =
+          (data.filmTimeline ?? data.film_timeline) as FilmTimelineJSON | undefined;
+        const completed =
+          data.status === 'completed' && typeof data.outputPath === 'string';
         setResult({
           status: data.status ?? 'failed',
           outputPath: data.outputPath,
+          outputMediaNonce: completed ? Date.now() : undefined,
           totalDuration: data.totalDuration,
           clipCount: data.clipCount,
           error: data.error,
+          filmTimeline: ft,
         });
       }
     } catch (err) {
@@ -114,7 +141,7 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] space-y-8">
+    <div className="mx-auto w-full max-w-[1920px] space-y-8">
       {/* Step indicator */}
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className={step >= 1 ? 'text-violet-400 font-medium' : ''}>1. Choose mode</span>
@@ -131,7 +158,7 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <button
               type="button"
               onClick={() => setMode('SIMPLE_STITCH')}
@@ -163,6 +190,22 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
                 Director + Editor pipeline: per-scene analysis and optional trimming, then stitch.
               </span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setMode('SMART_EDIT_REMOTION')}
+              className={`flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-colors ${
+                mode === 'SMART_EDIT_REMOTION'
+                  ? 'border-violet-500 bg-violet-500/15 text-violet-200'
+                  : 'border-white/10 bg-white/3 hover:border-white/20 hover:bg-white/5'
+              }`}
+            >
+              <Film className="h-5 w-5 shrink-0 opacity-80" />
+              <span className="font-medium">Polished export (Remotion)</span>
+              <span className="text-xs text-muted-foreground leading-relaxed">
+                Same Smart Edit plan, then Remotion render (video only, no text overlays). Requires Node/npx on the Muse backend. Slower than ffmpeg.
+              </span>
+            </button>
           </div>
 
           <div className="flex justify-end">
@@ -181,7 +224,14 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
         <>
           <div>
             <p className="text-sm text-muted-foreground">
-              Mode: <span className="font-medium text-foreground">{mode === 'SMART_EDIT' ? 'Smart Edit (Beta)' : 'Simple Stitch'}</span>
+              Mode:{' '}
+              <span className="font-medium text-foreground">
+                {mode === 'SMART_EDIT_REMOTION'
+                  ? 'Polished export (Remotion)'
+                  : mode === 'SMART_EDIT'
+                    ? 'Smart Edit (Beta)'
+                    : 'Simple Stitch'}
+              </span>
             </p>
           </div>
 
@@ -189,7 +239,8 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
             <div className="rounded-xl border border-white/10 bg-white/3 p-6 space-y-4">
               <p className="text-sm text-muted-foreground">
                 This may take a few minutes. The agent will collect all final scene clips and assemble the full film.
-                {mode === 'SMART_EDIT' && ' Progress will stream below.'}
+                {(mode === 'SMART_EDIT' || mode === 'SMART_EDIT_REMOTION') &&
+                  ' Progress will stream below.'}
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Button
@@ -210,7 +261,8 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
                   Back
                 </Button>
               </div>
-              {mode === 'SMART_EDIT' && (loading || logLines.length > 0) && (
+              {(mode === 'SMART_EDIT' || mode === 'SMART_EDIT_REMOTION') &&
+                (loading || logLines.length > 0) && (
                 <div className="rounded-lg border border-white/10 bg-black/40 overflow-hidden">
                   <div className="flex items-center gap-2 px-3 py-2 border-b border-white/8 bg-white/5">
                     <Terminal className="h-4 w-4 text-violet-400" />
@@ -242,7 +294,11 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
                           {result.totalDuration != null && ` · ${result.totalDuration.toFixed(1)}s`}
                         </p>
                         <a
-                          href={`/api/outputs/${result.outputPath}`}
+                          href={`/api/outputs/${result.outputPath}${
+                            result.outputMediaNonce != null
+                              ? `?v=${result.outputMediaNonce}`
+                              : ''
+                          }`}
                           target="_blank"
                           rel="noreferrer"
                           download
@@ -253,16 +309,45 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
                       </div>
                     </div>
                   </div>
+                  {result.filmTimeline &&
+                    result.filmTimeline.sequences?.length > 0 &&
+                    (mode === 'SMART_EDIT' || mode === 'SMART_EDIT_REMOTION') && (
+                      <FilmTimelineEditor
+                        projectId={projectId}
+                        exportMode={mode}
+                        initialTimeline={result.filmTimeline}
+                        onApplied={({ outputPath, totalDuration, clipCount, filmTimeline }) => {
+                          setResult((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  outputPath,
+                                  outputMediaNonce: Date.now(),
+                                  totalDuration,
+                                  clipCount,
+                                  filmTimeline,
+                                }
+                              : prev,
+                          );
+                        }}
+                      />
+                    )}
                   <div className="rounded-xl border border-white/10 bg-black/30 overflow-hidden">
-                    <p className="text-xs font-medium text-muted-foreground px-3 py-2 border-b border-white/8">
-                      Output preview
-                    </p>
+                    <div className="border-b border-white/8 px-3 py-2">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Final export (encoded file)
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground/80">
+                        Rendered master — video only (no Muse preview labels). Preview above adds titles for editing.
+                      </p>
+                    </div>
                     <video
-                      src={`/api/outputs/${result.outputPath}`}
+                      key={`${result.outputPath}-${result.outputMediaNonce ?? '0'}`}
+                      src={`/api/outputs/${result.outputPath}${
+                        result.outputMediaNonce != null ? `?v=${result.outputMediaNonce}` : ''
+                      }`}
                       controls
-                      className="w-full max-w-[1280px] h-[720px] max-h-[720px] object-contain bg-black"
-                      width={1280}
-                      height={720}
+                      className="h-auto max-h-[min(72vh,720px)] w-full bg-black object-contain"
                       preload="metadata"
                       playsInline
                     >
@@ -273,18 +358,28 @@ export function ExportFilmWizard({ projectId, projectTitle }: ExportFilmWizardPr
               )}
 
               {(result.status === 'no_final_scenes' || result.status === 'failed') && (
-                <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-red-200">
-                        {result.status === 'no_final_scenes' ? 'No final scenes' : 'Export failed'}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {result.error ?? 'No clips could be collected or the agent reported an error.'}
-                      </p>
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-red-200">
+                          {result.status === 'no_final_scenes' ? 'No final scenes' : 'Export failed'}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {result.error ?? 'No clips could be collected or the agent reported an error.'}
+                        </p>
+                      </div>
                     </div>
                   </div>
+                  {result.filmTimeline && result.filmTimeline.sequences?.length > 0 && (
+                    <div className="rounded-xl border border-white/10 bg-black/30 overflow-hidden space-y-2 p-3">
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Timeline preview (edit plan — Remotion Player)
+                      </p>
+                      <FilmCutPreview timeline={result.filmTimeline} />
+                    </div>
+                  )}
                 </div>
               )}
 

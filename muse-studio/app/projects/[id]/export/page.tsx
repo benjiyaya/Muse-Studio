@@ -39,7 +39,7 @@ export default async function ExportFilmPage({ params }: PageProps) {
       />
 
       <div className="flex-1 overflow-y-auto border-t border-white/8 bg-[oklch(0.11_0.01_264)]">
-        <div className="mx-auto w-full max-w-[1400px] px-6 py-8">
+        <div className="mx-auto w-full max-w-[1920px] px-6 py-8">
           <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
             <Link
               href={`/projects/${id}`}

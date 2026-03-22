@@ -10,6 +10,7 @@ POST /generate/* — Core inference endpoints for all three Muse agents.
 
 import json
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -257,6 +258,7 @@ async def generate_comfyui(request: dict[str, Any], background_tasks: Background
     scene_id = request.get("scene_id")
     kind = request.get("kind")
     workflow = request.get("workflow")
+    project_id_raw = request.get("project_id")
 
     if not scene_id or kind not in ("image", "video") or not isinstance(workflow, dict):
         raise HTTPException(status_code=400, detail={"error": "Invalid ComfyUI request payload."})
@@ -288,7 +290,20 @@ async def generate_comfyui(request: dict[str, Any], background_tasks: Background
         "comfy_prompt_id": None,
     }
 
-    output_dir = settings.outputs_path / ("videos" if kind == "video" else "drafts")
+    # Playground / sandbox: drafts/playground[/projectId]/ when scene_id is playground.
+    _playground_id = str(scene_id).strip().lower()
+    if _playground_id == "playground":
+        sub: str | None = None
+        if isinstance(project_id_raw, str):
+            s = project_id_raw.strip()
+            if s and len(s) <= 120 and re.fullmatch(r"[a-zA-Z0-9_-]+", s):
+                sub = s
+        if sub:
+            output_dir = settings.outputs_path / "drafts" / "playground" / sub
+        else:
+            output_dir = settings.outputs_path / "drafts" / "playground"
+    else:
+        output_dir = settings.outputs_path / ("videos" if kind == "video" else "drafts")
 
     async def _run_job() -> None:
         base_url = os.getenv("COMFYUI_BASE_URL", "http://127.0.0.1:8188")

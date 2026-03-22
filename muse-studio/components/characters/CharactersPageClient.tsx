@@ -56,7 +56,13 @@ export function CharactersPageClient({
   initialCharacters,
 }: CharactersPageClientProps) {
   const [characters, setCharacters] = useState<Character[]>(initialCharacters);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (!initialCharacters.length) return null;
+    const sorted = [...initialCharacters].sort(
+      (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name),
+    );
+    return sorted[0]?.id ?? null;
+  });
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 

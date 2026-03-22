@@ -47,6 +47,6 @@
     "lmstudio_base_url": "http://127.0.0.1:1234",
     "lmstudio_model": "qwen3.5-9b-uncensored-hauhaucs-aggressive",
     "ollama_base_url": "http://127.0.0.1:11434/",
-    "ollama_model": "huihui_ai/qwen3.5-abliterated:9b-fp16"
+    "ollama_model": "qwen3.5:35b-a3b-q8_0"
   }
 }

@@ -427,6 +427,20 @@ export async function deleteProjectAndAssets(projectId: string): Promise<void> {
     addRelative(normalizeOutputsRelative(job.output_path));
   }
 
+  // Project-scoped playground + promoted library folders (may not be referenced in DB rows)
+  const libraryDir = path.join(outputsRoot, 'drafts', projectId, 'library');
+  const playgroundProjDir = path.join(outputsRoot, 'drafts', 'playground', projectId);
+  for (const dir of [libraryDir, playgroundProjDir]) {
+    try {
+      if (fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[projects] Failed to remove project media directory', { projectId, dir, err });
+    }
+  }
+
   // Perform DB delete (cascades will remove child rows)
   db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
 

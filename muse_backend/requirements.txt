@@ -1,6 +1,9 @@
 # Muse Backend — Python Dependencies
 # Install order matters — see README.md for full setup instructions.
 
+# ── Tests (optional dev) ───────────────────────────────────────────────────────
+pytest>=8.0.0
+
 # ── Web framework ──────────────────────────────────────────────────────────────
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0

@@ -1,7 +1,14 @@
 'use server';
 
 import { db } from '@/db';
-import type { Character, CharacterImage, CharacterImageKind, CharacterImageSource, ImageAsset } from '@/lib/types';
+import type {
+  Character,
+  CharacterImage,
+  CharacterImageKind,
+  CharacterImageSource,
+  ImageAsset,
+  StorylineContent,
+} from '@/lib/types';
 
 interface CharacterRow {
   id: string;
@@ -72,6 +79,56 @@ function mapCharacter(row: CharacterRow, images: CharacterImage[]): Character {
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
   };
+}
+
+/** Split "Name — bio" / "Name - bio" style storyline entries into fields. */
+function splitStorylineCharacterEntry(entry: string): { name: string; shortBio?: string } {
+  const trimmed = entry.trim();
+  if (!trimmed) return { name: '' };
+  const seps = [' — ', ' – ', ' - '] as const;
+  for (const sep of seps) {
+    const i = trimmed.indexOf(sep);
+    if (i > 0 && i < trimmed.length - sep.length) {
+      const name = trimmed.slice(0, i).trim().slice(0, 200);
+      const bio = trimmed.slice(i + sep.length).trim().slice(0, 4000);
+      return name ? { name, shortBio: bio || undefined } : { name: trimmed.slice(0, 200) };
+    }
+  }
+  return { name: trimmed.slice(0, 200) };
+}
+
+/**
+ * When the roster is empty, create one DB character per storyline `characters[]` entry.
+ * Idempotent for non-empty roster (does nothing). Dedupes by case-insensitive name.
+ */
+export async function seedCharactersFromStorylineIfEmpty(
+  projectId: string,
+  storyline: StorylineContent | undefined | null,
+): Promise<Character[]> {
+  const existing = await listCharacters(projectId);
+  if (existing.length > 0) return existing;
+
+  const raw = storyline?.characters;
+  if (!Array.isArray(raw) || !raw.length) return existing;
+
+  const seen = new Set<string>();
+  let sortOrder = 0;
+  for (const line of raw) {
+    if (typeof line !== 'string') continue;
+    const { name, shortBio } = splitStorylineCharacterEntry(line);
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    await createCharacter({
+      projectId,
+      name,
+      shortBio,
+      sortOrder: sortOrder++,
+    });
+  }
+
+  return listCharacters(projectId);
 }
 
 /** List all characters for a project, including their reference images. */

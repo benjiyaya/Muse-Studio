@@ -138,6 +138,19 @@ transcription calls.
 
 ---
 
+## Polished export (Remotion) — optional
+
+When the Video Editor Agent runs with mode `SMART_EDIT_REMOTION`, the backend shells out to `npx remotion render` in `packages/remotion-film` (or override with `MUSE_REMOTION_PACKAGE_PATH`).
+
+- **`MUSE_VIDEO_HTTP_BASE`** — Base URL where Muse Studio serves `/api/outputs/...` (default `http://127.0.0.1:3000`). Remotion’s headless renderer loads scene MP4s over **http(s)** only; the Studio app must be reachable at this URL during render.
+- **`MUSE_REMOTION_PACKAGE_PATH`** — Absolute path to the Remotion project if not at `<repo>/packages/remotion-film`.
+
+Requires **Node.js** and **npx** on the same machine as the backend.
+
+Scene-to-scene **fade** transitions from the editor LLM (`transitionOut`) are applied in this Remotion render and in the Studio preview; the ffmpeg-only Smart Edit concat path does not use them yet.
+
+---
+
 ## CUDA Environment Quick Reference
 
 | Command | Purpose |

@@ -1,6 +1,6 @@
 'use client';
 
-import { BookOpen, Sparkles, Upload, PenLine, Film } from 'lucide-react';
+import { BookOpen, Sparkles, Upload, PenLine, Users } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import type { ProjectOverview, StorylineSource } from '@/lib/types';
 
@@ -17,7 +17,8 @@ export interface ProjectOverviewSheetProps {
 }
 
 export function ProjectOverviewSheet({ project, open, onOpenChange }: ProjectOverviewSheetProps) {
-  const { title, description, storyline, storylineSource, scenes } = project;
+  const { title, description, storyline, storylineSource } = project;
+  const characters = storyline?.characters ?? [];
   const SourceIcon =
     storylineSource === 'MUSE_GENERATED'
       ? Sparkles
@@ -37,7 +38,7 @@ export function ProjectOverviewSheet({ project, open, onOpenChange }: ProjectOve
             Project overview
           </SheetTitle>
           <SheetDescription className="text-xs text-muted-foreground">
-            A quick reminder of this project's storyline and script.
+            A quick reminder of this project — title, storyline, and cast.
           </SheetDescription>
         </SheetHeader>
 
@@ -66,12 +67,16 @@ export function ProjectOverviewSheet({ project, open, onOpenChange }: ProjectOve
             </div>
           </section>
 
-          {/* Storyline content */}
-          {storyline && (
-            <section>
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Storyline
-              </h3>
+          {/* Storyline (narrative only — characters listed separately) */}
+          <section>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              Storyline
+            </h3>
+            {!storyline ? (
+              <p className="text-sm text-muted-foreground rounded-lg border border-white/8 bg-white/5 px-3 py-4">
+                No storyline yet.
+              </p>
+            ) : (
               <div className="rounded-xl border border-white/8 bg-white/5 p-4 space-y-3 text-sm">
                 {storyline.logline && (
                   <div>
@@ -81,32 +86,22 @@ export function ProjectOverviewSheet({ project, open, onOpenChange }: ProjectOve
                     <p className="text-foreground/90 leading-relaxed">{storyline.logline}</p>
                   </div>
                 )}
-                <div>
-                  <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">
-                    Plot outline
-                  </p>
-                  <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                    {storyline.plotOutline}
-                  </p>
-                </div>
+                {storyline.plotOutline ? (
+                  <div>
+                    <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">
+                      Plot outline
+                    </p>
+                    <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                      {storyline.plotOutline}
+                    </p>
+                  </div>
+                ) : null}
                 {storyline.genre && (
                   <div>
                     <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">
                       Genre
                     </p>
                     <p className="text-foreground/90">{storyline.genre}</p>
-                  </div>
-                )}
-                {storyline.characters?.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-0.5">
-                      Characters
-                    </p>
-                    <ul className="list-disc list-inside text-foreground/90 space-y-0.5">
-                      {storyline.characters.map((c, i) => (
-                        <li key={i}>{c}</li>
-                      ))}
-                    </ul>
                   </div>
                 )}
                 {storyline.themes?.length > 0 && (
@@ -117,44 +112,32 @@ export function ProjectOverviewSheet({ project, open, onOpenChange }: ProjectOve
                     <p className="text-foreground/90">{storyline.themes.join(', ')}</p>
                   </div>
                 )}
+                {!storyline.logline &&
+                  !storyline.plotOutline &&
+                  !storyline.genre &&
+                  !(storyline.themes?.length) && (
+                    <p className="text-muted-foreground">No storyline details yet.</p>
+                  )}
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
-          {/* Scenes (script) */}
+          {/* Characters */}
           <section>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <Film className="h-3.5 w-3.5" />
-              Scenes
+              <Users className="h-3.5 w-3.5" />
+              Characters
             </h3>
-            {scenes.length === 0 ? (
+            {characters.length === 0 ? (
               <p className="text-sm text-muted-foreground rounded-lg border border-white/8 bg-white/5 px-3 py-4">
-                No scenes yet.
+                No characters listed.
               </p>
             ) : (
-              <div className="space-y-2">
-                {scenes
-                  .slice()
-                  .sort((a, b) => a.sceneNumber - b.sceneNumber)
-                  .map((scene) => (
-                    <div
-                      key={scene.id}
-                      className="rounded-lg border border-white/8 bg-white/5 p-3 text-sm"
-                    >
-                      <p className="font-medium text-foreground">
-                        {scene.sceneNumber}. {scene.title || scene.heading || 'Untitled'}
-                      </p>
-                      {scene.heading && scene.heading !== scene.title && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{scene.heading}</p>
-                      )}
-                      {scene.description && (
-                        <p className="text-muted-foreground mt-1 leading-relaxed line-clamp-3">
-                          {scene.description}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-              </div>
+              <ul className="rounded-lg border border-white/8 bg-white/5 px-4 py-3 text-sm text-foreground/90 list-disc list-inside space-y-1">
+                {characters.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
             )}
           </section>
         </div>

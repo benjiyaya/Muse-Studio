@@ -17,6 +17,7 @@ import type { Character, CharacterImage } from '@/lib/types';
 import type { ComfyWorkflowSummary, ComfyWorkflowFull } from '@/lib/actions/comfyui';
 import { parseDynamicInputs, type WorkflowNode, type ComfyDynamicInput } from '@/lib/comfy-parser';
 import { addCharacterImage } from '@/lib/actions/characters';
+import { ProjectLibraryStrip } from '@/components/media/ProjectLibraryStrip';
 
 type Phase = 'idle' | 'loading' | 'ready' | 'submitting' | 'polling' | 'result' | 'error';
 
@@ -525,6 +526,34 @@ export function CharacterComfyGenerateDialog({
                           </div>
                         </div>
                       )}
+
+                      <ProjectLibraryStrip
+                        projectId={character.projectId}
+                        filter="image"
+                        onPick={async (item) => {
+                          if (item.kind !== 'image') return;
+                          setFilePaths((p) => ({ ...p, [inp.nodeId]: item.path }));
+                          clearFieldError(inp.nodeId);
+                          try {
+                            const res = await fetch(`/api/outputs/${item.path}`);
+                            const blob = await res.blob();
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                              setFileDataUrls((p) => ({
+                                ...p,
+                                [inp.nodeId]: e.target?.result as string,
+                              }));
+                            };
+                            reader.readAsDataURL(blob);
+                          } catch {
+                            setFileDataUrls((p) => ({
+                              ...p,
+                              [inp.nodeId]: `/api/outputs/${item.path}`,
+                            }));
+                          }
+                        }}
+                        className="pt-1"
+                      />
 
                       {hasError && <p className="text-[10px] text-red-400">{fieldErrors[inp.nodeId]}</p>}
                     </div>

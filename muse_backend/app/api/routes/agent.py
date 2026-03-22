@@ -11,7 +11,9 @@ from queue import Empty
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas import (
     AgentExecuteRequest,
@@ -155,6 +157,19 @@ class VideoEditorAgentRequest(BaseModel):
 
     project: dict
     mode: str = "SIMPLE_STITCH"
+
+
+class ApplyFilmTimelineRequest(BaseModel):
+    """User-edited film timeline → re-render master (Remotion or ffmpeg)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    project_id: str = Field(validation_alias="projectId")
+    film_timeline: dict = Field(validation_alias="filmTimeline")
+    output_kind: Literal["remotion", "ffmpeg"] = Field(
+        default="remotion",
+        validation_alias="outputKind",
+    )
 
 
 async def _generate_scenes_sse(
@@ -376,6 +391,29 @@ async def run_video_editor_stream(request: VideoEditorAgentRequest):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/film/apply-timeline")
+async def apply_film_timeline_route(request: ApplyFilmTimelineRequest):
+    """
+    Apply trims / transitions from an edited FilmTimeline JSON (no LLM).
+    - outputKind=remotion: Re-run Remotion render to final_cuts/<projectId>_remotion.mp4
+    - outputKind=ffmpeg: Re-cut each segment from previewSrc and concat to final_cuts/<projectId>_smart_edit.mp4
+      (fade transitions are not applied in ffmpeg; use Remotion for crossfades.)
+    """
+    from app.film_timeline_apply import apply_film_timeline
+
+    result = apply_film_timeline(
+        project_id=request.project_id,
+        film_timeline_dict=request.film_timeline,
+        output_kind=request.output_kind,
+    )
+    if result.get("status") == "failed":
+        raise HTTPException(
+            status_code=400,
+            detail={"error": result.get("error", "Apply timeline failed.")},
+        )
+    return result
 
 
 @router.post("/suggestions/revision", response_model=AgentSuggestionsResponse)

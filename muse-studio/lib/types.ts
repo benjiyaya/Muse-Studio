@@ -97,6 +97,8 @@ export interface Scene {
   description: string;
   dialogue?: string;
   technicalNotes?: string;
+  /** Optional free-form notes (UI / legacy). */
+  notes?: string;
   status: KanbanStatus;
   keyframes: Keyframe[];
   videoUrl?: string;
