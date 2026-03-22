@@ -1,21 +1,32 @@
-# Python secrets
+# Secrets & credentials (never commit)
+*.pem
+*.key
+*.p12
+*token*.json
+*credentials*.json
+service-account*.json
 muse_backend/.env
-
-# Frontend env (local overrides)
+muse_backend/.env.*
+!muse_backend/.env.example
 muse-studio/.env.local
+muse-studio/.env*.local
 
-# Node
+# Node / Next.js (frontend)
 muse-studio/node_modules/
 muse-studio/.next/
 
-# Local / development
-.cursor/
-*.log
-.github/
-.skills/
-.skills/frontend-design/
-.vscode/
+# Monorepo packages (Remotion, etc.)
+packages/*/node_modules/
 
+# Generated media & exports (videos, images, timelines)
+muse-studio/outputs/**
+!muse-studio/outputs/.gitignore
+
+# Local IDE (machine-specific)
+.cursor/
+
+# Logs
+*.log
 
 # OS
 .DS_Store

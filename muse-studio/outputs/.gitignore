@@ -1,3 +1,2 @@
-/drafts
-/refs
-/videos
+# Local ComfyUI drafts, final cuts, editor timelines, and other exports.
+# Tracked only so the folder exists in clones; all contents are ignored via ../.gitignore.

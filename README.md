@@ -24,7 +24,9 @@ This README covers **installation, configuration, and day‑to‑day usage** of 
 10. [Quick Command Reference](#10-quick-command-reference)
 11. [Upgrading PyTorch](#11-upgrading-pytorch)
 12. [Troubleshooting](#12-troubleshooting)
-13. [Publishing on GitHub](#13-publishing-on-github)
+13. [Polished export (Remotion)](#13-polished-export-remotion)
+14. [Publishing on GitHub](#14-publishing-on-github)
+15. [Credits & acknowledgments](#15-credits--acknowledgments)
 
 ---
 
@@ -124,10 +126,12 @@ cd Muse-Studio
 
 Project layout:
 ```
-/                         ← repo / project root
-├── muse-studio/          ← Next.js frontend
-├── muse_backend/         ← Python FastAPI backend
-└── README.md             ← This file
+/                              ← repo / project root
+├── muse-studio/               ← Next.js frontend
+├── muse_backend/              ← Python FastAPI backend
+├── packages/
+│   └── remotion-film/         ← Remotion “FilmMaster” composition (polished export)
+└── README.md                  ← This file
 ```
 
 Image and video generation run through **ComfyUI**; no local model folder is required in this repo.
@@ -156,6 +160,11 @@ Image and video generation run through **ComfyUI**; no local model folder is req
    #   NEXT_PUBLIC_OLLAMA_BASE_URL=http://127.0.0.1:11434   # if you use Ollama
    #   NEXT_PUBLIC_LMSTUDIO_BASE_URL=http://127.0.0.1:1234  # if you use LM Studio
    ```
+   - Polished Remotion export (optional — needed for `SMART_EDIT_REMOTION` / FilmMaster renders):
+     ```bash
+     cd ../packages/remotion-film
+     npm install
+     ```
 
 2. **Configure keys**
    - Edit `muse_backend/.env`:
@@ -706,4 +715,93 @@ lsof -ti:8000 | xargs kill -9
 
 ---
 
+## 13. Polished export (Remotion)
+
+The **`packages/remotion-film`** package is a [Remotion](https://www.remotion.dev/) composition used for Muse **FilmMaster** exports (polished timeline render). The Python backend can shell out to `npx remotion render` from this directory when you use the Remotion-based export path. For backend environment variables (`MUSE_VIDEO_HTTP_BASE`, `MUSE_REMOTION_PACKAGE_PATH`), see **`muse_backend/README.md`** → *Polished export (Remotion) — optional*.
+
+### Prerequisites
+
+- **Node.js** 18+ (LTS recommended) and **npm** on your `PATH`.
+- **`npx`** (ships with npm) — the backend invokes `npx remotion render` from this package directory.
+
+### Installation
+
+From the **repository root**:
+
+```bash
+cd packages/remotion-film
+npm install
+```
+
+Run `npm install` again after dependency changes or a fresh clone.
+
+### Paths and HTTP video sources
+
+- By default the backend expects this project at **`<repo>/packages/remotion-film`**.
+- If it lives elsewhere, set **`MUSE_REMOTION_PACKAGE_PATH`** on the backend to the **absolute** path of the folder that contains `package.json`.
+
+Remotion loads scene clips over **HTTP(S)** during render. The backend rewrites timeline URLs using **`MUSE_VIDEO_HTTP_BASE`** (see `muse_backend/README.md`).
+
+- Default: `http://127.0.0.1:3000` (typical `muse-studio` dev server).
+- Set **`MUSE_VIDEO_HTTP_BASE`** on the **Python backend** to match wherever Muse Studio is reachable from the machine running the render (often the same idea as `MUSE_FRONTEND_BASE_URL` in `muse-studio/.env.local`, but Next.js does not load that file into Python — set the backend env explicitly or via `muse_backend/.env` if your launcher loads it).
+
+**Muse Studio must be running** and able to serve `/api/outputs/...` at that origin while an export runs.
+
+### Dev — Remotion Studio
+
+Preview the composition locally:
+
+```bash
+cd packages/remotion-film
+npm run studio
+```
+
+### Render (CLI)
+
+Requires a props JSON file (same shape as the backend **FilmTimeline**):
+
+```bash
+cd packages/remotion-film
+npx remotion render src/index.ts FilmMaster out/video.mp4 --props=timeline.fixtures.json
+```
+
+Fixture render (writes props then renders):
+
+```bash
+npm run render:fixture
+```
+
+### Transitions
+
+Timeline JSON may include `transitionOut` on each sequence **except the last** (Muse strips it on the final clip). `type: "fade"` with `durationSec` produces a crossfade via `@remotion/transitions` (`TransitionSeries` + `fade()`). `cut` or missing values are hard cuts. Durations are clamped to the shorter of the two adjacent clips and to a small minimum fade length in the Remotion layer.
+
+Smart Edit / Remotion export: the editor LLM supplies `transitionOut` per scene; the backend normalizes it (fade duration clamped to 0.05–2.0 s, unknown types become `cut`).
+
+**ffmpeg-only** Smart Edit master concat does not apply these transitions; polished Remotion export and the Muse Studio player preview do.
+
+### Environment summary
+
+| Variable | Where | Purpose |
+|----------|--------|---------|
+| `MUSE_REMOTION_PACKAGE_PATH` | Python backend | Optional absolute path to this package if not under `<repo>/packages/remotion-film`. |
+| `MUSE_VIDEO_HTTP_BASE` | Python backend | Origin where Muse Studio serves video URLs Remotion will fetch (default `http://127.0.0.1:3000`). |
+
+---
+
+## 14. Publishing on GitHub
+
+This repository is hosted at **[github.com/benjiyaya/Muse-Studio](https://github.com/benjiyaya/Muse-Studio)**.
+
+- **Do not commit** API keys or secrets: use `muse_backend/.env` and `muse-studio/.env.local` (see `.gitignore` and `.env.example` files).
+- **Generated media** under `muse-studio/outputs/` (draft images, videos, timelines, final cuts) is ignored so clones stay small; recreate outputs locally after install.
+- **`muse-studio`**, **`muse_backend`**, and **`packages/`** (including `packages/remotion-film`) are all part of the same repo — clone once at the root and follow the setup sections above.
+
+---
+
 This project is licensed under the MIT License — see [LICENSE](LICENSE).
+
+---
+
+## 15. Credits & acknowledgments
+
+**Remotion** — Muse Studio’s polished film export and timeline preview build on **[Remotion](https://www.remotion.dev/)**, the React-based framework for programmatic video. Thank you to the Remotion team and community for the tools and documentation that make headless, code-driven rendering practical in this stack.
