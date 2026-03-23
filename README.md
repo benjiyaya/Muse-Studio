@@ -1,7 +1,14 @@
 # Muse Studio — AI Story & Video Workspace
 
-Muse Studio is a local-first workspace for planning, visualizing, and iterating on stories and video concepts. It combines:
+Muse Studio is a local-first workspace for planning, visualizing, and iterating on stories and video concepts. 
 
+About Basic Usage Of Muse Studio : https://youtu.be/N9FTtNYHzIU
+
+This is create as my hobby, if company want to customize for your workflow, feel free to reach out. 
+
+
+
+It combines:
 - A **frontend** (`muse-studio`) with kanban-style scenes, characters, and “Muse” suggestions
 - A **Python FastAPI backend** (`muse_backend`) that orchestrates LLMs and video/image providers
 - Tight integration with **ComfyUI** for image and video generation via your own workflows
