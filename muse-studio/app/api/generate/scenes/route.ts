@@ -254,6 +254,80 @@ async function* generateOpenAICompatText(opts: {
   }
 }
 
+async function* generateLMStudioText(opts: {
+  baseUrl: string;
+  model: string;
+  systemPrompt: string;
+  userMessage: string;
+  maxOutputTokens?: number;
+  timeoutMs?: number;
+}): AsyncGenerator<string> {
+  const cleanUrl = opts.baseUrl.replace(/\/+$/, "");
+  const maxTokens = opts.maxOutputTokens ?? 3000;
+  const timeoutMs = opts.timeoutMs ?? 120_000;
+
+  let res: globalThis.Response;
+  try {
+    res = await fetch(`${cleanUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: opts.model,
+        messages: [
+          { role: "system", content: opts.systemPrompt },
+          { role: "user", content: opts.userMessage },
+        ],
+        max_tokens: maxTokens,
+        temperature: 0.75,
+        stream: true,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    throw new Error(`Cannot connect to LM Studio at ${cleanUrl}.`);
+  }
+
+  if (!res.ok || !res.body) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      detail =
+        ((await res.clone().json()) as { error?: { message?: string } })
+          ?.error?.message ?? detail;
+    } catch {
+      /**/
+    }
+    throw new Error(`LM Studio error: ${detail}`);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (payload === "[DONE]") return;
+      try {
+        const j = JSON.parse(payload) as {
+          choices?: Array<{ delta?: { content?: string } }>;
+        };
+        const text = j.choices?.[0]?.delta?.content ?? "";
+        if (text) yield text;
+      } catch {
+        /* skip */
+      }
+    }
+  }
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -372,6 +446,9 @@ export async function POST(req: NextRequest) {
   const ollamaModel = settings.ollama_model ?? 'qwen3-vl:latest';
   const openaiModel = settings.openai_model ?? 'gpt-4o';
   const claudeModel = settings.claude_model ?? 'claude-sonnet-4-6';
+  const lmstudioBaseUrl = settings.lmstudio_base_url ?? 'http://127.0.0.1:1234';
+  const lmstudioModel = settings.lmstudio_model ?? 'gpt-4o-mini';
+  
 
   // Resolve requested scene count (fallback to 5 for compatibility); cap to avoid timeouts/stream issues
   const requested = Number.isFinite(body.targetScenes as number)
@@ -477,6 +554,15 @@ export async function POST(req: NextRequest) {
             maxOutputTokens: claudeMaxOutput,
             timeoutMs: openaiStreamTimeoutMs,
           });
+        } else if (provider === "lmstudio") {
+          generator = generateLMStudioText({
+            baseUrl: lmstudioBaseUrl,
+            model: lmstudioModel,
+            systemPrompt: sceneSystemPrompt,
+            userMessage,
+            maxOutputTokens: openaiMaxOutput,
+            timeoutMs: openaiStreamTimeoutMs,
+          });          
         } else {
           generator = generateOllamaText({
             baseUrl: ollamaUrl,
