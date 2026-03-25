@@ -171,6 +171,8 @@ export function MuseChatPanel({
       claudeModel: llmSettings.claudeModel,
       lmstudioBaseUrl: llmSettings.lmstudioBaseUrl,
       lmstudioModel: llmSettings.lmstudioModel,
+      openrouterModel: llmSettings.openrouterModel,
+      openrouterBaseUrl: llmSettings.openrouterBaseUrl,
       projectId: projectId ?? undefined,
       context: initialContext
         ? {

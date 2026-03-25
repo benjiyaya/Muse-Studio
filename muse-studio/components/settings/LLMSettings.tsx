@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Sparkles,
   ExternalLink,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -66,6 +67,14 @@ const PROVIDER_OPTIONS = [
     badge: 'API Key Required',
     badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
   },
+  {
+    id: 'openrouter',
+    label: 'OpenRouter',
+    description:
+      'Many models through one OpenAI-compatible API. Set OPENROUTER_API_KEY in muse-studio/.env.local and muse_backend/.env.',
+    badge: 'API Key Required',
+    badgeColor: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
+  },
 ];
 
 const OPENAI_MODELS = [
@@ -79,6 +88,14 @@ const CLAUDE_MODELS = [
   { id: 'claude-haiku-3-5',   label: 'Claude Haiku 3.5',   description: 'Fast, compact' },
   { id: 'claude-sonnet-4-6',  label: 'Claude Sonnet 4.6',  description: 'Balanced — recommended' },
   { id: 'claude-opus-4-6',    label: 'Claude Opus 4.6',    description: 'Most powerful' },
+];
+
+const OPENROUTER_MODELS = [
+  { id: 'openai/gpt-4o-mini', label: 'GPT-4o mini', description: 'Fast, cost-efficient' },
+  { id: 'openai/gpt-4o', label: 'GPT-4o', description: 'Strong general model' },
+  { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet', description: 'Via OpenRouter' },
+  { id: 'google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash', description: 'Google' },
+  { id: 'meta-llama/llama-3.3-70b-instruct', label: 'Llama 3.3 70B', description: 'Open weights' },
 ];
 
 // ── Simple model dropdown shared by OpenAI and Claude sections ───────────────
@@ -139,6 +156,12 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
   const [claudeModel, setClaudeModel] = useState(initialSettings.claudeModel ?? 'claude-sonnet-4-6');
   const [lmstudioUrl, setLmstudioUrl] = useState(initialSettings.lmstudioBaseUrl);
   const [lmstudioModel, setLmstudioModel] = useState(initialSettings.lmstudioModel ?? 'gpt-4o-mini');
+  const [openrouterModel, setOpenrouterModel] = useState(
+    initialSettings.openrouterModel ?? 'openai/gpt-4o-mini',
+  );
+  const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState(
+    initialSettings.openrouterBaseUrl ?? 'https://openrouter.ai/api/v1',
+  );
 
   const [models, setModels] = useState<LLMModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -162,7 +185,9 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
     openaiModel !== (initialSettings.openaiModel ?? 'gpt-4o') ||
     claudeModel !== (initialSettings.claudeModel ?? 'claude-sonnet-4-6') ||
     lmstudioUrl !== initialSettings.lmstudioBaseUrl ||
-    lmstudioModel !== (initialSettings.lmstudioModel ?? 'gpt-4o-mini');
+    lmstudioModel !== (initialSettings.lmstudioModel ?? 'gpt-4o-mini') ||
+    openrouterModel !== (initialSettings.openrouterModel ?? 'openai/gpt-4o-mini') ||
+    openrouterBaseUrl !== (initialSettings.openrouterBaseUrl ?? 'https://openrouter.ai/api/v1');
 
   // ── Load Ollama models ─────────────────────────────────────────────────────
 
@@ -258,6 +283,8 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
         claudeModel,
         lmstudioBaseUrl: lmstudioUrl,
         lmstudioModel,
+        openrouterModel,
+        openrouterBaseUrl,
       });
 
       // Sync to backend so Video Editor Agent and other LLM consumers use the same provider
@@ -273,6 +300,9 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
           body.openai_model = openaiModel;
         } else if (provider === 'claude') {
           body.claude_model = claudeModel;
+        } else if (provider === 'openrouter') {
+          body.openrouter_model = openrouterModel;
+          body.openrouter_base_url = openrouterBaseUrl;
         }
         await fetch('/api/llm/config', {
           method: 'POST',
@@ -773,6 +803,90 @@ export function LLMSettings({ initialSettings }: LLMSettingsProps) {
 
           <p className="text-xs text-muted-foreground/60">
             The key is never stored in the database. Restart the backend after updating .env.
+          </p>
+        </section>
+      )}
+
+      {/* ── OpenRouter configuration ───────────────────────────────────────── */}
+      {provider === 'openrouter' && (
+        <section className="rounded-2xl border border-white/8 bg-[oklch(0.13_0.012_264)] p-5 space-y-5">
+          <h2 className="text-sm font-medium flex items-center gap-2">
+            <Globe className="h-4 w-4 text-cyan-400" />
+            OpenRouter Configuration
+          </h2>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              API base URL
+            </label>
+            <input
+              type="text"
+              value={openrouterBaseUrl}
+              onChange={(e) => setOpenrouterBaseUrl(e.target.value)}
+              placeholder="https://openrouter.ai/api/v1"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-mono placeholder:text-muted-foreground/50 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-colors"
+            />
+            <p className="mt-1.5 text-xs text-muted-foreground/60">
+              Default is the public OpenRouter API. Change only if you use a proxy.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+              Model id
+            </label>
+            <input
+              type="text"
+              value={openrouterModel}
+              onChange={(e) => setOpenrouterModel(e.target.value)}
+              placeholder="openai/gpt-4o-mini"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-mono placeholder:text-muted-foreground/50 outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 transition-colors"
+            />
+            <p className="mt-2 text-xs text-muted-foreground/60 mb-2">Quick presets</p>
+            <div className="flex flex-wrap gap-2">
+              {OPENROUTER_MODELS.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setOpenrouterModel(m.id)}
+                  className={cn(
+                    'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
+                    openrouterModel === m.id
+                      ? 'border-cyan-400/60 bg-cyan-500/15 text-cyan-200'
+                      : 'border-white/10 bg-white/5 text-muted-foreground hover:border-white/20 hover:bg-white/8',
+                  )}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground/60">
+              Browse models at{' '}
+              <a
+                href="https://openrouter.ai/models"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-cyan-400/80 hover:text-cyan-400 inline-flex items-center gap-0.5"
+              >
+                openrouter.ai/models <ExternalLink className="h-3 w-3" />
+              </a>
+              . Use the exact model slug in the field above.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 px-4 py-3 space-y-2">
+            <p className="text-sm text-cyan-200/90">API keys (never stored in the database)</p>
+            <code className="block rounded-lg bg-white/5 px-3 py-2 text-xs font-mono text-foreground/80 whitespace-pre">
+              {'# muse-studio/.env.local — Story Muse in Next.js\nOPENROUTER_API_KEY=sk-or-v1-...\n\n# muse_backend/.env — Python agents & long-form\nOPENROUTER_API_KEY=sk-or-v1-...'}
+            </code>
+            <p className="text-xs text-muted-foreground/70">
+              Optional: <span className="font-mono">OPENROUTER_HTTP_REFERER</span>,{' '}
+              <span className="font-mono">OPENROUTER_APP_TITLE</span> for OpenRouter rankings.
+            </p>
+          </div>
+
+          <p className="text-xs text-muted-foreground/60">
+            Restart the Next.js dev server and the Python backend after changing environment variables.
           </p>
         </section>
       )}

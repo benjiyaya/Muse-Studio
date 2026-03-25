@@ -20,6 +20,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { Project, StorylineContent } from '@/lib/types';
 import type { LLMSettings } from '@/lib/actions/settings';
+import {
+  activeLlmModelId,
+  activeLlmProviderLabel,
+  isLocalLlmProvider,
+} from '@/lib/llm-display';
 import { useStoryMuse } from '@/hooks/useStoryMuse';
 
 interface StorylineStageProps {
@@ -150,6 +155,8 @@ export function StorylineStage({ project, onConfirm, llmSettings }: StorylineSta
       claudeModel: llmSettings?.claudeModel,
       lmstudioBaseUrl: llmSettings?.lmstudioBaseUrl,
       lmstudioModel: llmSettings?.lmstudioModel,
+      openrouterModel: llmSettings?.openrouterModel,
+      openrouterBaseUrl: llmSettings?.openrouterBaseUrl,
     });
 
     if (error || !raw) return; // Error is displayed inline
@@ -251,7 +258,11 @@ export function StorylineStage({ project, onConfirm, llmSettings }: StorylineSta
             </div>
             <span className="text-sm font-medium text-violet-300">Story Muse</span>
             <span className="text-xs text-muted-foreground/60">
-              {isLoadingModel && !storyMuse.text ? 'loading model…' : 'writing your storyline…'}
+              {isLoadingModel && !storyMuse.text
+                ? isLocalLlmProvider(llmSettings)
+                  ? 'loading model…'
+                  : 'waiting for response…'
+                : 'writing your storyline…'}
             </span>
           </div>
           {wordCount > 0 && (
@@ -274,11 +285,24 @@ export function StorylineStage({ project, onConfirm, llmSettings }: StorylineSta
                 <Feather className="h-7 w-7 text-violet-400/70" />
               </div>
               <div className="text-center max-w-sm">
-                <p className="text-base font-medium text-foreground/80">Loading model into memory</p>
+                <p className="text-base font-medium text-foreground/80">
+                  {isLocalLlmProvider(llmSettings)
+                    ? 'Loading model into memory'
+                    : 'Starting generation'}
+                </p>
                 <p className="mt-1.5 text-sm text-muted-foreground/60">
-                  {llmSettings?.ollamaModel
-                    ? `${llmSettings.ollamaModel} — large models take a minute on first use.`
-                    : 'Large models take a minute on first use.'}
+                  {(() => {
+                    const model = activeLlmModelId(llmSettings);
+                    const via = activeLlmProviderLabel(llmSettings);
+                    if (model) {
+                      return isLocalLlmProvider(llmSettings)
+                        ? `${model} — large local models can take a minute on first use.`
+                        : `${model} via ${via} — this can take a moment.`;
+                    }
+                    return isLocalLlmProvider(llmSettings)
+                      ? 'Large local models can take a minute on first use.'
+                      : `Using ${via}. This can take a moment.`;
+                  })()}
                 </p>
                 <div className="mt-4 flex justify-center gap-1.5">
                   {[0, 150, 300].map((delay) => (
@@ -383,14 +407,8 @@ export function StorylineStage({ project, onConfirm, llmSettings }: StorylineSta
           </Button>
 
           <p className="mt-2.5 text-center text-xs text-muted-foreground/40">
-            Using {llmSettings?.llmProvider ?? 'ollama'}
-            {llmSettings?.llmProvider === 'ollama' && llmSettings.ollamaModel
-              ? ` · ${llmSettings.ollamaModel}`
-              : llmSettings?.llmProvider === 'openai' && llmSettings.openaiModel
-              ? ` · ${llmSettings.openaiModel}`
-              : llmSettings?.llmProvider === 'claude' && llmSettings.claudeModel
-              ? ` · ${llmSettings.claudeModel}`
-              : ''}
+            Using {activeLlmProviderLabel(llmSettings)}
+            {activeLlmModelId(llmSettings) ? ` · ${activeLlmModelId(llmSettings)}` : ''}
           </p>
         </div>
       </div>

@@ -98,6 +98,8 @@ export function AskMuseModal({ isOpen, onClose, defaultMuse = 'STORY_MUSE', cont
       claudeModel: llmSettings.claudeModel,
       lmstudioBaseUrl: llmSettings.lmstudioBaseUrl,
       lmstudioModel: llmSettings.lmstudioModel,
+      openrouterModel: llmSettings.openrouterModel,
+      openrouterBaseUrl: llmSettings.openrouterBaseUrl,
       context: context
         ? {
             sceneId: context.sceneId,

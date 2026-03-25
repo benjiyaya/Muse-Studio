@@ -25,6 +25,8 @@ export interface StoryMuseOptions {
   temperature?: number;
   lmstudioBaseUrl?: string;
   lmstudioModel?: string;
+  openrouterModel?: string;
+  openrouterBaseUrl?: string;
 }
 
 export interface StoryMuseState {
@@ -89,6 +91,8 @@ export function useStoryMuse() {
             claude_model: opts.claudeModel,
           lmstudio_base_url: opts.lmstudioBaseUrl,
           lmstudio_model: opts.lmstudioModel,
+          openrouter_model: opts.openrouterModel,
+          openrouter_base_url: opts.openrouterBaseUrl,
           }),
         });
 

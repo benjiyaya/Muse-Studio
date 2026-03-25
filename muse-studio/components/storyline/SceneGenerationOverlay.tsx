@@ -13,6 +13,12 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  activeLlmProviderLabel,
+  isLocalLlmProvider,
+  streamFirstDataTimeoutMessage,
+} from '@/lib/llm-display';
+import { useLLMSettings } from '@/hooks/useSettings';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -61,13 +67,13 @@ const FIELD_LABELS: Record<string, string> = {
 /** No SSE bytes (including `: ping`) — LLM offline, proxy stall, or hung server. */
 const STREAM_FIRST_DATA_TIMEOUT_MS = 120_000;
 
-const STREAM_TIMEOUT_MESSAGE =
-  'Timed out waiting for the LLM: no data on the stream for 2 minutes. Check Settings → LLM (Ollama running, API keys, model load). Use Try again when ready.';
-
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SceneGenerationOverlay({ projectId, targetScenes }: Props) {
   const router = useRouter();
+  const llmSettings = useLLMSettings();
+  const llmSettingsRef = useRef(llmSettings);
+  llmSettingsRef.current = llmSettings;
   const [phase, setPhase] = useState<Phase>('connecting');
   const [importFields, setImportFields] = useState<ImportField[]>([]);
   const [checkedCount, setCheckedCount] = useState(0);
@@ -335,7 +341,7 @@ export function SceneGenerationOverlay({ projectId, targetScenes }: Props) {
         clearStreamWatchdog();
         if ((err as Error).name === 'AbortError') {
           if (abortedForStreamTimeout) {
-            setErrorMsg(STREAM_TIMEOUT_MESSAGE);
+            setErrorMsg(streamFirstDataTimeoutMessage(llmSettingsRef.current));
             setPhase('error');
           }
           return;
@@ -542,9 +548,23 @@ export function SceneGenerationOverlay({ projectId, targetScenes }: Props) {
                   <p className="text-[11px] text-muted-foreground/50 text-center max-w-md leading-relaxed">
                     The first scene card appears only after the model finishes a full{' '}
                     <span className="font-mono text-muted-foreground/70">{'<<<SCENE>>>'}…{'<<<END>>>'}</span> block.
-                    On a local LLM that can take many minutes; watch the <span className="text-muted-foreground/70">LLM response</span>{' '}
-                    panel on the left for streaming text. If Ollama returns <span className="text-muted-foreground/70">429</span>, wait and use{' '}
-                    <span className="text-muted-foreground/70">Try again</span>.
+                    {isLocalLlmProvider(llmSettings) ? (
+                      <>
+                        {' '}
+                        On a local model ({activeLlmProviderLabel(llmSettings)}) that can take many minutes; watch the{' '}
+                        <span className="text-muted-foreground/70">LLM response</span> panel on the left for streaming
+                        text. If you see rate limits (e.g. HTTP <span className="text-muted-foreground/70">429</span>
+                        ), wait and use <span className="text-muted-foreground/70">Try again</span>.
+                      </>
+                    ) : (
+                      <>
+                        {' '}
+                        Using {activeLlmProviderLabel(llmSettings)} — the first block can still take a minute or two;
+                        watch the <span className="text-muted-foreground/70">LLM response</span> panel for streaming
+                        text. If you hit rate limits (e.g. HTTP <span className="text-muted-foreground/70">429</span>
+                        ), wait and use <span className="text-muted-foreground/70">Try again</span>.
+                      </>
+                    )}
                   </p>
                 )}
               </div>

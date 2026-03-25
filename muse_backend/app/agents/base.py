@@ -21,6 +21,7 @@ class LongformSceneState(TypedDict, total=False):
     error: Optional[str]
     stream_callback: Optional[Callable[[str, dict], None]]
     provider_id: Optional[str]
+    llm_model: Optional[str]
 
 
 @dataclass

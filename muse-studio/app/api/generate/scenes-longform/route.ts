@@ -1,5 +1,23 @@
 import { NextRequest } from 'next/server';
 import { db } from '@/db';
+import { getLLMSettings, type LLMSettings } from '@/lib/actions/settings';
+
+function longformLlmModel(settings: LLMSettings): string | undefined {
+  switch (settings.llmProvider) {
+    case 'openai':
+      return settings.openaiModel || undefined;
+    case 'claude':
+      return settings.claudeModel || undefined;
+    case 'lmstudio':
+      return settings.lmstudioModel || undefined;
+    case 'openrouter':
+      return settings.openrouterModel || undefined;
+    case 'ollama':
+      return settings.ollamaModel || undefined;
+    default:
+      return undefined;
+  }
+}
 
 const BACKEND_URL = process.env.MUSE_BACKEND_URL ?? 'http://localhost:8000';
 
@@ -68,6 +86,9 @@ export async function POST(req: NextRequest) {
     description: s.description,
   }));
 
+  const llmSettings = await getLLMSettings();
+  const llm_model = longformLlmModel(llmSettings);
+
   const backendUrl = `${BACKEND_URL.replace(/\/+$/, '')}/agent/generate-scenes`;
   const res = await fetch(backendUrl, {
     method: 'POST',
@@ -79,6 +100,8 @@ export async function POST(req: NextRequest) {
       batchSize: 24,
       storyline,
       existingScenes,
+      provider_id: llmSettings.llmProvider,
+      ...(llm_model ? { llm_model } : {}),
     }),
   });
 

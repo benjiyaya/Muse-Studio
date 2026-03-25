@@ -6,7 +6,7 @@ import { Brain, Info, Workflow } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV_ITEMS = [
-  { href: '/settings/llm',     label: 'LLM',     icon: Brain,    description: 'Language model & Ollama' },
+  { href: '/settings/llm',     label: 'LLM',     icon: Brain,    description: 'Provider, model & API keys' },
   { href: '/settings/comfyui', label: 'ComfyUI',  icon: Workflow, description: 'Workflow library' },
   { href: '/settings/about',   label: 'About',    icon: Info,     description: 'Version & credits' },
 ];

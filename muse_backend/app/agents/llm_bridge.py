@@ -112,6 +112,38 @@ def get_chat_model(
             max_tokens=max_tokens,
         )
 
+    if pid == "openrouter":
+        from langchain_openai import ChatOpenAI
+
+        api_key = settings.openrouter_api_key or os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY not set")
+        llm_cfg = _get_llm_config()
+        base_raw = (
+            llm_cfg.get("openrouter_base_url")
+            or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        ).rstrip("/")
+        # ChatOpenAI expects the OpenAI root that ends with /v1
+        base_url = base_raw if base_raw.endswith("/v1") else f"{base_raw}/v1"
+        or_model = model or llm_cfg.get("openrouter_model") or os.getenv(
+            "OPENROUTER_MODEL", "openai/gpt-4o-mini"
+        )
+        default_headers: dict[str, str] = {}
+        ref = os.getenv("OPENROUTER_HTTP_REFERER")
+        title = os.getenv("OPENROUTER_APP_TITLE")
+        if ref:
+            default_headers["HTTP-Referer"] = ref
+        if title:
+            default_headers["X-Title"] = title
+        return ChatOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            model=or_model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            default_headers=default_headers or None,
+        )
+
     raise ValueError(f"Unknown LLM provider: {pid}")
 
 
@@ -127,4 +159,6 @@ def is_provider_available(provider_id: Optional[str] = None) -> bool:
     if pid == "lmstudio":
         # Consider LM Studio available when a base URL is configured.
         return bool(os.getenv("LMSTUDIO_BASE_URL"))
+    if pid == "openrouter":
+        return bool(settings.openrouter_api_key or os.getenv("OPENROUTER_API_KEY"))
     return False

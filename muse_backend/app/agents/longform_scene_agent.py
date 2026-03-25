@@ -173,6 +173,7 @@ def generate_batch_node(state: LongformSceneState) -> dict[str, Any]:
     try:
         llm = get_chat_model(
             provider_id=state.get("provider_id"),
+            model=state.get("llm_model"),
             temperature=0.75,
             max_tokens=min(32000, max(3000, 500 * actual_batch_size)),
         )
@@ -265,6 +266,7 @@ def run_longform_scene_graph(
     existing_scenes: Optional[list[dict[str, Any]]] = None,
     stream_callback: Optional[Callable[[str, dict], None]] = None,
     provider_id: Optional[str] = None,
+    llm_model: Optional[str] = None,
 ) -> dict[str, Any]:
     """
     Run the long-form scene generation graph.
@@ -289,6 +291,7 @@ def run_longform_scene_graph(
         "all_generated_scenes": [],
         "stream_callback": stream_callback,
         "provider_id": provider_id,
+        "llm_model": llm_model,
     }
 
     try:

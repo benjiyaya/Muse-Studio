@@ -54,17 +54,20 @@ class LLMConfigResponse(BaseModel):
     ollama_base_url: str
     ollama_model: str
     openai_configured: bool
+    openrouter_configured: bool = False
 
 
 class LLMConfigUpdate(BaseModel):
     """Body for POST /llm/config — sync Settings → backend so Video Editor and other agents use the same provider."""
-    active_provider: str  # "ollama" | "openai" | "claude" | "lmstudio"
+    active_provider: str  # "ollama" | "openai" | "claude" | "lmstudio" | "openrouter"
     ollama_base_url: Optional[str] = None
     ollama_model: Optional[str] = None
     lmstudio_base_url: Optional[str] = None
     lmstudio_model: Optional[str] = None
     openai_model: Optional[str] = None
     claude_model: Optional[str] = None
+    openrouter_model: Optional[str] = None
+    openrouter_base_url: Optional[str] = None
 
 
 def _read_config() -> dict:
@@ -144,6 +147,7 @@ async def get_llm_config():
         ollama_base_url=ollama_cfg.get("ollama_base_url") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         ollama_model=ollama_cfg.get("ollama_model") or os.getenv("OLLAMA_MODEL", "llama3.2"),
         openai_configured=bool(settings.openai_api_key),
+        openrouter_configured=bool(settings.openrouter_api_key),
     )
 
 
@@ -174,6 +178,10 @@ async def update_llm_config(body: LLMConfigUpdate):
         cfg["llm"]["openai_model"] = body.openai_model
     if body.claude_model is not None:
         cfg["llm"]["claude_model"] = body.claude_model
+    if body.openrouter_model is not None:
+        cfg["llm"]["openrouter_model"] = body.openrouter_model
+    if body.openrouter_base_url is not None:
+        cfg["llm"]["openrouter_base_url"] = body.openrouter_base_url
     _write_config(cfg)
     settings.reload_from_file()
     logger.info("[LLM] Persisted active_provider=%s to muse_config.json", body.active_provider)
@@ -185,4 +193,5 @@ async def update_llm_config(body: LLMConfigUpdate):
         ollama_base_url=ollama_cfg.get("ollama_base_url") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         ollama_model=ollama_cfg.get("ollama_model") or os.getenv("OLLAMA_MODEL", "llama3.2"),
         openai_configured=bool(settings.openai_api_key),
+        openrouter_configured=bool(settings.openrouter_api_key),
     )

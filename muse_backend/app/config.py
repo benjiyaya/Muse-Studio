@@ -131,6 +131,7 @@ class AppConfig:
     # --- API keys (from environment only — never in config file) ---
     openai_api_key: Optional[str] = field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
     anthropic_api_key: Optional[str] = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
+    openrouter_api_key: Optional[str] = field(default_factory=lambda: os.getenv("OPENROUTER_API_KEY"))
     kling_api_key: Optional[str] = field(default_factory=lambda: os.getenv("KLING_API_KEY"))
     seeddance_api_key: Optional[str] = field(default_factory=lambda: os.getenv("SEEDDANCE_API_KEY"))
     runway_api_key: Optional[str] = field(default_factory=lambda: os.getenv("RUNWAY_API_KEY"))

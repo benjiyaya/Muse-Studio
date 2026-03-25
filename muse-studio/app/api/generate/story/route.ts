@@ -1,6 +1,19 @@
 import { NextRequest } from 'next/server';
 import { getProjectById } from '@/lib/actions/projects';
+import { getLLMSettings } from '@/lib/actions/settings';
 import type { Project } from '@/lib/types';
+
+const DEFAULT_MISSING_API_KEY_MSG =
+  'Set the API key in muse-studio/.env.local (or your deployment environment) and restart the dev server.';
+
+function openRouterOptionalHeaders(): Record<string, string> {
+  const h: Record<string, string> = {};
+  const referer = process.env.OPENROUTER_HTTP_REFERER?.trim();
+  const title = process.env.OPENROUTER_APP_TITLE?.trim();
+  if (referer) h['HTTP-Referer'] = referer;
+  if (title) h['X-Title'] = title;
+  return h;
+}
 
 /**
  * POST /api/generate/story
@@ -308,6 +321,10 @@ async function streamOpenAICompat(opts: {
   maxTokens?: number;
   temperature?: number;
   providerName?: string;
+  /** Merged into request headers (e.g. OpenRouter HTTP-Referer / X-Title). */
+  extraHeaders?: Record<string, string>;
+  /** Shown when apiKey is empty; defaults to Next.js .env.local hint. */
+  missingKeyMessage?: string;
 }): Promise<Response> {
   const {
     baseUrl,
@@ -318,23 +335,26 @@ async function streamOpenAICompat(opts: {
     maxTokens = 2048,
     temperature = 0.8,
     providerName = 'API',
+    extraHeaders,
+    missingKeyMessage = DEFAULT_MISSING_API_KEY_MSG,
   } = opts;
 
+  const cleanBase = baseUrl.replace(/\/+$/, '');
+
   if (!apiKey) {
-    return sseError(
-      `${providerName} API key not configured. Set it in muse_backend/.env and restart the backend.`,
-    );
+    return sseError(`${providerName} API key not configured. ${missingKeyMessage}`);
   }
 
   let upstream: globalThis.Response;
   try {
-    upstream = await fetch(`${baseUrl}/chat/completions`, {
+    upstream = await fetch(`${cleanBase}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
         // Anthropic needs this header
-        ...(baseUrl.includes('anthropic') && { 'anthropic-version': '2023-06-01' }),
+        ...(cleanBase.includes('anthropic') && { 'anthropic-version': '2023-06-01' }),
+        ...extraHeaders,
       },
       body: JSON.stringify({
         model,
@@ -539,6 +559,8 @@ export async function POST(req: NextRequest) {
     temperature,
     lmstudio_base_url,
     lmstudio_model,
+    openrouter_model: openrouterModelBody,
+    openrouter_base_url: openrouterBaseUrlBody,
   } = body as {
     task?: string;
     prompt: string;
@@ -553,6 +575,8 @@ export async function POST(req: NextRequest) {
     temperature?: number;
     lmstudio_base_url?: string;
     lmstudio_model?: string;
+    openrouter_model?: string;
+    openrouter_base_url?: string;
   };
 
   const systemPrompt = SYSTEM_PROMPTS[task] ?? SYSTEM_PROMPTS.default;
@@ -630,7 +654,30 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    case 'openrouter': {
+      const saved = await getLLMSettings();
+      const baseUrl = (openrouterBaseUrlBody || saved.openrouterBaseUrl || 'https://openrouter.ai/api/v1').replace(
+        /\/+$/,
+        '',
+      );
+      const model = openrouterModelBody || saved.openrouterModel || 'openai/gpt-4o-mini';
+      const apiKey = process.env.OPENROUTER_API_KEY ?? '';
+      return streamOpenAICompat({
+        baseUrl,
+        apiKey,
+        model,
+        systemPrompt,
+        userMessage,
+        maxTokens: max_tokens,
+        temperature,
+        providerName: 'OpenRouter',
+        extraHeaders: openRouterOptionalHeaders(),
+      });
+    }
+
     default:
-      return sseError(`Unknown provider: "${provider_id}". Choose: ollama, openai, claude, lmstudio`);
+      return sseError(
+        `Unknown provider: "${provider_id}". Choose: ollama, openai, claude, lmstudio, openrouter`,
+      );
   }
 }

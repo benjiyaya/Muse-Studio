@@ -190,6 +190,15 @@ class StoryGenerateRequest(BaseModel):
         default=None,
         description="Override LMSTUDIO_MODEL env var for this request."
     )
+    # OpenRouter (used when provider_id = "openrouter")
+    openrouter_model: Optional[str] = Field(
+        default=None,
+        description="OpenRouter model id, e.g. openai/gpt-4o-mini"
+    )
+    openrouter_base_url: Optional[str] = Field(
+        default=None,
+        description="Override OpenRouter API base URL (default https://openrouter.ai/api/v1)."
+    )
 
 
 # ── Job polling ───────────────────────────────────────────────────────────────

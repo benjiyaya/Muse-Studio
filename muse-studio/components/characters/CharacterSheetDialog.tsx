@@ -116,6 +116,8 @@ export function CharacterSheetDialog({
       claudeModel: llmSettings.claudeModel,
       lmstudioBaseUrl: llmSettings.lmstudioBaseUrl,
       lmstudioModel: llmSettings.lmstudioModel,
+      openrouterModel: llmSettings.openrouterModel,
+      openrouterBaseUrl: llmSettings.openrouterBaseUrl,
       maxTokens: 512,
       temperature: 0.8,
     });

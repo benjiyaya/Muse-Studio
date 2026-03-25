@@ -12,7 +12,7 @@
     "image_draft": "flux_klein",
     "image_draft_alt": "qwen",
     "image_refine": "zimage_turbo",
-    "llm": "ollama",
+    "llm": "openrouter",
     "video_default": "ltx2"
   },
   "model_formats": {
@@ -47,6 +47,8 @@
     "lmstudio_base_url": "http://127.0.0.1:1234",
     "lmstudio_model": "qwen3.5-9b-uncensored-hauhaucs-aggressive",
     "ollama_base_url": "http://127.0.0.1:11434/",
-    "ollama_model": "qwen3.5:35b-a3b-q8_0"
+    "ollama_model": "qwen3.5:35b-a3b-q8_0",
+    "openrouter_model": "nvidia/nemotron-3-super-120b-a12b:free",
+    "openrouter_base_url": "https://openrouter.ai/api/v1"
   }
 }

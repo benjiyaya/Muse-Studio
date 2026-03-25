@@ -21,6 +21,15 @@ import { db } from '@/db';
 
 const MAX_SCENES_PER_REQUEST = 24;
 
+function openRouterOptionalHeaders(): Record<string, string> {
+  const h: Record<string, string> = {};
+  const referer = process.env.OPENROUTER_HTTP_REFERER?.trim();
+  const title = process.env.OPENROUTER_APP_TITLE?.trim();
+  if (referer) h['HTTP-Referer'] = referer;
+  if (title) h['X-Title'] = title;
+  return h;
+}
+
 /** Manual storylines can be huge; oversized prompts slow or overload local LLMs. Full text stays in DB. */
 const MAX_SCENE_PROMPT_PLOT_CHARS = 26_000;
 const MAX_SCENE_PROMPT_CHAR_BLOCK_CHARS = 3_200;
@@ -194,20 +203,28 @@ async function* generateOpenAICompatText(opts: {
   /** Output token budget; default too small for many scenes. */
   maxOutputTokens?: number;
   timeoutMs?: number;
+  extraHeaders?: Record<string, string>;
+  /** Appended to missing-key error (e.g. where to set env). */
+  missingKeyHint?: string;
 }): AsyncGenerator<string> {
-  if (!opts.apiKey) throw new Error(`${opts.providerName ?? 'API'} key not configured.`);
+  const cleanBase = opts.baseUrl.replace(/\/+$/, '');
+  const keyHint = opts.missingKeyHint ?? 'Set the key in muse-studio/.env.local and restart the dev server.';
+  if (!opts.apiKey) {
+    throw new Error(`${opts.providerName ?? 'API'} key not configured. ${keyHint}`);
+  }
 
   const maxTokens = opts.maxOutputTokens ?? 3000;
   const timeoutMs = opts.timeoutMs ?? 120_000;
 
   let res: globalThis.Response;
   try {
-    res = await fetch(`${opts.baseUrl}/chat/completions`, {
+    res = await fetch(`${cleanBase}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${opts.apiKey}`,
-        ...(opts.baseUrl.includes('anthropic') && { 'anthropic-version': '2023-06-01' }),
+        ...(cleanBase.includes('anthropic') && { 'anthropic-version': '2023-06-01' }),
+        ...opts.extraHeaders,
       },
       body: JSON.stringify({
         model: opts.model,
@@ -448,7 +465,9 @@ export async function POST(req: NextRequest) {
   const claudeModel = settings.claude_model ?? 'claude-sonnet-4-6';
   const lmstudioBaseUrl = settings.lmstudio_base_url ?? 'http://127.0.0.1:1234';
   const lmstudioModel = settings.lmstudio_model ?? 'gpt-4o-mini';
-  
+  const openrouterModel = settings.openrouter_model ?? 'openai/gpt-4o-mini';
+  const openrouterBaseUrl = settings.openrouter_base_url ?? 'https://openrouter.ai/api/v1';
+
 
   // Resolve requested scene count (fallback to 5 for compatibility); cap to avoid timeouts/stream issues
   const requested = Number.isFinite(body.targetScenes as number)
@@ -554,7 +573,7 @@ export async function POST(req: NextRequest) {
             maxOutputTokens: claudeMaxOutput,
             timeoutMs: openaiStreamTimeoutMs,
           });
-        } else if (provider === "lmstudio") {
+        } else if (provider === 'lmstudio') {
           generator = generateLMStudioText({
             baseUrl: lmstudioBaseUrl,
             model: lmstudioModel,
@@ -562,7 +581,20 @@ export async function POST(req: NextRequest) {
             userMessage,
             maxOutputTokens: openaiMaxOutput,
             timeoutMs: openaiStreamTimeoutMs,
-          });          
+          });
+        } else if (provider === 'openrouter') {
+          generator = generateOpenAICompatText({
+            baseUrl: openrouterBaseUrl,
+            apiKey: process.env.OPENROUTER_API_KEY ?? '',
+            model: openrouterModel,
+            systemPrompt: sceneSystemPrompt,
+            userMessage,
+            providerName: 'OpenRouter',
+            maxOutputTokens: openaiMaxOutput,
+            timeoutMs: openaiStreamTimeoutMs,
+            extraHeaders: openRouterOptionalHeaders(),
+            missingKeyHint: 'Set OPENROUTER_API_KEY in muse-studio/.env.local.',
+          });
         } else {
           generator = generateOllamaText({
             baseUrl: ollamaUrl,

@@ -92,6 +92,16 @@ Some models stream internal reasoning (“thinking”) plus the final answer. To
 3. Add at the **very beginning** of the template: `{%- set enable_thinking = false %}`
 4. Save and restart inference for that model. Muse will then only show the final answer.
 
+### OpenRouter (cloud, OpenAI-compatible)
+
+[OpenRouter](https://openrouter.ai/) exposes many models behind one OpenAI-style API. Muse treats it as a first-class provider alongside OpenAI and Claude.
+
+- **API keys are never stored in the database or Settings UI.** Set them only in environment files (same pattern as OpenAI and Anthropic).
+- **`muse-studio/.env.local`** (or your Next.js host env): `OPENROUTER_API_KEY` — required for storyline generation, Ask Muse, batch scene generation, and other routes that call the LLM from Next.js.
+- **`muse_backend/.env`**: `OPENROUTER_API_KEY` — required when the active provider is OpenRouter for Python paths: `POST /generate/story`, long-form scenes (`POST /agent/generate-scenes`), and LangGraph agents that use `get_chat_model`.
+- Optional attribution headers (recommended by OpenRouter): `OPENROUTER_HTTP_REFERER`, `OPENROUTER_APP_TITLE` in the same env files you use for that process.
+- In **Settings → Language Model**, choose **OpenRouter**, set the model id (e.g. `openai/gpt-4o-mini`), and save. Model and base URL sync to `muse_config.json` via the backend; the key stays in `.env` only.
+
 ---
 
 ## 2. Prerequisites

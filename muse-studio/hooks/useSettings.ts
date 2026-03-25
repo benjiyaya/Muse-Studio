@@ -11,6 +11,8 @@ const DEFAULT_LLM: LLMSettings = {
   claudeModel: 'claude-sonnet-4-6',
   lmstudioBaseUrl: 'http://localhost:1234',
   lmstudioModel: '',
+  openrouterModel: 'openai/gpt-4o-mini',
+  openrouterBaseUrl: 'https://openrouter.ai/api/v1',
 };
 
 export function useLLMSettings(): LLMSettings {

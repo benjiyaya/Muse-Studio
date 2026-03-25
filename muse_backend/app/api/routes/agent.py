@@ -142,6 +142,7 @@ class GenerateScenesRequest(BaseModel):
     storyline: dict | None = None  # required for long-form; frontend sends from project
     existingScenes: list[dict] | None = None
     provider_id: str | None = None
+    llm_model: str | None = None
 
 
 class OrchestrateRequest(BaseModel):
@@ -179,6 +180,7 @@ async def _generate_scenes_sse(
     existing_scenes: list[dict],
     batch_size: int,
     provider_id: str | None,
+    llm_model: str | None,
 ):
     """Yield SSE events for long-form scene generation (event: scene, event: batch_done, event: done, event: error)."""
     event_queue: queue.Queue = queue.Queue()
@@ -197,6 +199,7 @@ async def _generate_scenes_sse(
             existing_scenes=existing_scenes,
             stream_callback=stream_callback,
             provider_id=provider_id,
+            llm_model=llm_model,
         )
         total = len(result.get("all_generated_scenes") or [])
         event_queue.put(("_done", {"totalScenes": total, "error": result.get("error")}))
@@ -252,6 +255,7 @@ async def generate_scenes_stream(request: GenerateScenesRequest):
             existing_scenes=request.existingScenes or [],
             batch_size=min(request.batchSize, 24),
             provider_id=request.provider_id,
+            llm_model=request.llm_model,
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},

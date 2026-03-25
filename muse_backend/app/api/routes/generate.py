@@ -450,6 +450,8 @@ async def generate_story(request: StoryGenerateRequest):
         "claude_model": request.claude_model,
         "lmstudio_base_url": request.lmstudio_base_url,
         "lmstudio_model": request.lmstudio_model,
+        "openrouter_model": request.openrouter_model,
+        "openrouter_base_url": request.openrouter_base_url,
     }
 
     async def event_stream() -> AsyncGenerator[str, None]:

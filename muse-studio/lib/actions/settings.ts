@@ -51,13 +51,17 @@ export async function setSettings(entries: Record<string, string>): Promise<void
 // ─── LLM settings convenience helpers ────────────────────────────────────────
 
 export interface LLMSettings {
-  llmProvider: string;    // "ollama" | "openai" | "claude" | "lmstudio"
+  llmProvider: string;    // "ollama" | "openai" | "claude" | "lmstudio" | "openrouter"
   ollamaBaseUrl: string;
   ollamaModel: string;
   openaiModel: string;
   claudeModel: string;
   lmstudioBaseUrl: string;
   lmstudioModel: string;
+  /** OpenRouter model id, e.g. openai/gpt-4o-mini */
+  openrouterModel: string;
+  /** OpenAI-compatible API base; default https://openrouter.ai/api/v1 */
+  openrouterBaseUrl: string;
 }
 
 export async function getLLMSettings(): Promise<LLMSettings> {
@@ -70,6 +74,8 @@ export async function getLLMSettings(): Promise<LLMSettings> {
     claudeModel: all['claude_model'] ?? 'claude-sonnet-4-6',
     lmstudioBaseUrl: all['lmstudio_base_url'] ?? 'http://localhost:1234',
     lmstudioModel: all['lmstudio_model'] ?? '',
+    openrouterModel: all['openrouter_model'] ?? 'openai/gpt-4o-mini',
+    openrouterBaseUrl: all['openrouter_base_url'] ?? 'https://openrouter.ai/api/v1',
   };
 }
 
@@ -82,6 +88,8 @@ export async function saveLLMSettings(data: LLMSettings): Promise<void> {
     claude_model: data.claudeModel,
     lmstudio_base_url: data.lmstudioBaseUrl,
     lmstudio_model: data.lmstudioModel,
+    openrouter_model: data.openrouterModel,
+    openrouter_base_url: data.openrouterBaseUrl,
   });
 }
 

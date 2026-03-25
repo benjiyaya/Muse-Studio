@@ -33,6 +33,7 @@ from app.providers.llm.openai_provider import OpenAIProvider
 from app.providers.llm.ollama_provider import OllamaProvider
 from app.providers.llm.claude_provider import ClaudeProvider
 from app.providers.llm.lmstudio_provider import LMStudioProvider
+from app.providers.llm.openrouter_provider import OpenRouterProvider
 
 
 # ── Provider registries ───────────────────────────────────────────────────────
@@ -67,6 +68,7 @@ LLM_PROVIDERS: dict[str, Type[LLMProvider]] = {
     "ollama": OllamaProvider,
     "claude": ClaudeProvider,
     "lmstudio": LMStudioProvider,
+    "openrouter": OpenRouterProvider,
 }
 
 

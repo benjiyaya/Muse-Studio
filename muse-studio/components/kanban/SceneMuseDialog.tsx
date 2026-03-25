@@ -22,6 +22,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { activeLlmModelId, isLocalLlmProvider } from '@/lib/llm-display';
 import { useStoryMuse } from '@/hooks/useStoryMuse';
 import { useLLMSettings } from '@/hooks/useSettings';
 import { createKeyframe, updateScene, updateSceneStatus } from '@/lib/actions/scenes';
@@ -200,6 +201,8 @@ export function SceneMuseDialog({
       claudeModel: llmSettings.claudeModel,
       lmstudioBaseUrl: llmSettings.lmstudioBaseUrl,
       lmstudioModel: llmSettings.lmstudioModel,
+      openrouterModel: llmSettings.openrouterModel,
+      openrouterBaseUrl: llmSettings.openrouterBaseUrl,
       maxTokens: mode === 'image_prompt' ? 512 : 2048,
       temperature: mode === 'image_prompt' ? 0.85 : 0.75,
     });
@@ -391,8 +394,22 @@ export function SceneMuseDialog({
             <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
               <Loader2 className="h-4 w-4 text-amber-400 animate-spin shrink-0" />
               <div>
-                <p className="text-xs text-amber-300 font-medium">Loading model into memory…</p>
-                <p className="text-[10px] text-amber-400/60">This may take a moment for large models.</p>
+                <p className="text-xs text-amber-300 font-medium">
+                  {isLocalLlmProvider(llmSettings)
+                    ? 'Loading model into memory…'
+                    : 'Waiting for response…'}
+                </p>
+                <p className="text-[10px] text-amber-400/60">
+                  {activeLlmModelId(llmSettings)
+                    ? `${activeLlmModelId(llmSettings)} — ${
+                        isLocalLlmProvider(llmSettings)
+                          ? 'large local models may take a while.'
+                          : 'cloud models usually start quickly.'
+                      }`
+                    : isLocalLlmProvider(llmSettings)
+                      ? 'Large local models may take a while.'
+                      : 'This may take a moment.'}
+                </p>
               </div>
             </div>
           )}
