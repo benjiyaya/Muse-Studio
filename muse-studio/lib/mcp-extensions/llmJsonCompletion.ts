@@ -1,4 +1,5 @@
 import type { LLMSettings } from '@/lib/actions/settings';
+import type { McpAttachmentPayload } from '@/lib/mcp-extensions/mcpChatTypes';
 import { DEFAULT_MISSING_API_KEY_MSG } from '@/lib/generation/storyGenerationInternals';
 import { openRouterOptionalHeaders } from '@/lib/generation/openRouterHeaders';
 
@@ -27,21 +28,58 @@ Parse sizes from phrases like "1280x720", "width 1280", "height 720", and step c
 
 For "video.generate", include "prompt" and any generation params the user specified.
 
+MCP tools (method "MCP" in the catalog) include "mcpDescription" and "mcpInputSchema" when available.
+You MUST set "input" to an object that satisfies the JSON Schema for that tool only — no extra keys.
+Servers often validate with strict Pydantic and reject unknown arguments.
+When the user attached images/videos/text (STRUCTURED ATTACHMENTS), copy each file into the correct
+schema property names (e.g. reference image URL field). Muse serves files at "/api/outputs/<relPath>"
+(relative to the app origin). Build that URL from each attachment's "relPath" when the schema expects a URL.
+
+Built-in Muse tools (method "BUILTIN") are first-party capabilities (\`muse.story\`, \`muse.visual\`, \`muse.motion\`).
+For these, prefer the active session context and include:
+- "prompt": string (required)
+- "projectId": string (optional; include when project context is active)
+- "sceneId": string (optional)
+
 Rules:
 - If the user only wants information or small talk, set "tool" to null and put your answer in "reply".
 - If the user wants generation or an action an extension provides, set "tool" with the correct capability and input.
 - Prefer "image.generate" or "video.generate" when the user asks for images or video and those capabilities exist in the catalog.
 - Do not invent capabilities or plugin IDs — only use values from the TOOLS CATALOG below.`;
 
+function attachmentPromptSlice(a: McpAttachmentPayload) {
+  const rel = a.relPath.replace(/^\/+/, '');
+  return {
+    ...a,
+    /** App-served URL path; resolve with the same origin as Muse (prepend public base if the tool needs an absolute URL). */
+    apiUrl: `/api/outputs/${rel}`,
+  };
+}
+
 function buildUserPayload(
   catalogJson: string,
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
   latestUser: string,
+  sessionContext?: {
+    projectId?: string;
+    sceneId?: string;
+    sceneTitle?: string;
+    stage?: string;
+  },
+  attachments?: McpAttachmentPayload[],
 ): string {
   const hist = history
     .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
     .join('\n\n');
-  return `TOOLS CATALOG (JSON array):\n${catalogJson}\n\n---\nCONVERSATION:\n${hist || '(no prior messages)'}\n\n---\nLATEST USER MESSAGE:\n${latestUser}`;
+  const attachBlock =
+    attachments && attachments.length > 0
+      ? `\n\n---\nSTRUCTURED ATTACHMENTS (JSON; copy fields into MCP "input" per mcpInputSchema only):\n${JSON.stringify(attachments.map(attachmentPromptSlice), null, 2)}`
+      : '';
+  const contextBlock =
+    sessionContext && (sessionContext.projectId || sessionContext.sceneId || sessionContext.sceneTitle || sessionContext.stage)
+      ? `\n\n---\nACTIVE SESSION CONTEXT:\n${JSON.stringify(sessionContext, null, 2)}`
+      : '';
+  return `TOOLS CATALOG (JSON array):\n${catalogJson}\n\n---\nCONVERSATION:\n${hist || '(no prior messages)'}\n\n---\nLATEST USER MESSAGE:\n${latestUser}${contextBlock}${attachBlock}`;
 }
 
 export async function completeJsonOrchestration(opts: {
@@ -49,9 +87,16 @@ export async function completeJsonOrchestration(opts: {
   catalogJson: string;
   history: Array<{ role: 'user' | 'assistant'; content: string }>;
   latestUserMessage: string;
+  sessionContext?: {
+    projectId?: string;
+    sceneId?: string;
+    sceneTitle?: string;
+    stage?: string;
+  };
+  attachments?: McpAttachmentPayload[];
 }): Promise<string> {
-  const { settings, catalogJson, history, latestUserMessage } = opts;
-  const userContent = buildUserPayload(catalogJson, history, latestUserMessage);
+  const { settings, catalogJson, history, latestUserMessage, sessionContext, attachments } = opts;
+  const userContent = buildUserPayload(catalogJson, history, latestUserMessage, sessionContext, attachments);
   const provider = settings.llmProvider;
 
   if (provider === 'ollama') {

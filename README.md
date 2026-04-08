@@ -64,11 +64,13 @@ This README covers **installation, configuration, and day‑to‑day usage** of 
 
 ## 1. What's New
 
-### Release 1.5.2 (2026-03-31) [https://github.com/benjiyaya/Muse-Studio/releases/tag/v1.5.2](https://github.com/benjiyaya/Muse-Studio/releases/tag/v1.5.2)
+### Release 1.5.5 (2026-09-04) [https://github.com/benjiyaya/Muse-Studio/releases/tag/v1.5.5](https://github.com/benjiyaya/Muse-Studio/releases/tag/v1.5.5)
 
-- **MCP + plugin extension refresh** across frontend settings/pages and backend bridge wiring.
-- **Generation and provider flow updates** in draft/refine routes, Kanban/Playground dialogs, and provider adapter contracts.
-- **Backend/provider cleanup** with model-pipeline removals and registry/schema updates for a leaner runtime.
+- **Extensions + Ask Muse consolidation** - Ask Muse capabilities are unified in the Extensions chat flow, with `/ask-muse` redirected to `/mcp-extensions` (query-compatible).
+- **Built-in Muse orchestration tools** - Added execution support for `muse.story`, `muse.visual`, and `muse.motion` in the unified executor while keeping the MCP tools panel MCP-only.
+- **Session and context upgrades** - Multi-session UX now supports create/switch/rename/delete/pin/search; session context persists `project_id` and `scene_id`; chat shows active project context chip and improved empty-session start flow.
+- **Attachment/upload improvements** - Removed manual upload target selector and now derive upload target from session context (project-level vs session-level) with more reliable ID fallback behavior.
+- **Stability fixes** - Added resilient DB/session schema checks, fixed `crypto.randomUUID` fallback in client IDs, and prevented strict MCP schema argument mismatches from extra injected fields.
 
 ### Release 1.5.0 (2026-03-28)
 
@@ -613,7 +615,7 @@ Expected response (example):
 ```json
 {
   "status": "ok",
-  "version": "1.5.2",
+  "version": "1.5.5",
   "available_providers": { ... }
 }
 ```
@@ -893,4 +895,5 @@ For remediation guidance, see [`SECURITY.md`](SECURITY.md).
 ## Changelog releases
 
 Version history and **detailed release notes** (features, codebase paths, docs) live in [`CHANGELOG.md`](CHANGELOG.md). For **v1.5.0**, open that file and paste the **[1.5.0]** section into the GitHub Release body for tag [`v1.5.0`](https://github.com/benjiyaya/Muse-Studio/releases/tag/v1.5.0) if you want the web UI to mirror the repo.
+
 

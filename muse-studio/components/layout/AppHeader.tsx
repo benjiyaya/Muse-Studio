@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Film, Sparkles, ChevronRight, Settings, LayoutGrid, BookOpen, FlaskConical, Puzzle } from 'lucide-react';
+import { Film, ChevronRight, Settings, LayoutGrid, BookOpen, FlaskConical, Puzzle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -68,7 +68,7 @@ export function AppHeader({
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'm') {
         e.preventDefault();
-        router.push('/ask-muse');
+        router.push('/mcp-extensions');
       }
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -305,22 +305,6 @@ export function AppHeader({
             <TooltipContent>Settings</TooltipContent>
           </Tooltip>
 
-          {/* Ask Muse CTA → full-page chat */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                asChild
-                className="h-9 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium text-sm px-4 gap-2 muse-glow transition-all"
-                title="Ask Muse (⌘M)"
-              >
-                <Link href="/ask-muse">
-                  <Sparkles className="h-4 w-4" />
-                  <span className="hidden sm:block">Ask Muse</span>
-                </Link>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Ask Muse (⌘M)</TooltipContent>
-          </Tooltip>
         </div>
       </header>
 

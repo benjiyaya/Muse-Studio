@@ -1,25 +1,96 @@
 import { getLLMSettings } from '@/lib/actions/settings';
-import {
-  listMcpExtensionToolsForLlm,
-  type McpExtensionToolDescriptor,
-  getMcpHookMcpPolicy,
-} from '@/lib/actions/plugins';
+import { listMcpExtensionToolsForOrchestration, getMcpHookMcpPolicy } from '@/lib/actions/plugins';
 import { completeJsonOrchestration } from '@/lib/mcp-extensions/llmJsonCompletion';
 import { executeMcpToolPlan, resolveToolTarget } from '@/lib/mcp-extensions/executeMcpToolPlan';
+import type { McpExtensionToolDescriptor } from '@/lib/actions/plugins';
 import type {
+  McpAttachmentPayload,
   McpChatMessage,
   McpChatResponse,
   McpToolCallLogEntry,
-  McpToolCallPreview,
 } from '@/lib/mcp-extensions/mcpChatTypes';
 
 export type {
+  McpAttachmentPayload,
   McpChatMessage,
   McpToolCallPreview,
   McpToolCallLogEntry,
   McpChatResponse,
   McpPendingApproval,
 } from '@/lib/mcp-extensions/mcpChatTypes';
+
+const MAX_SCHEMA_JSON_CHARS = 8000;
+const BUILTIN_MUSE_PLUGIN_ID = 'builtin.muse';
+
+function builtInMuseCatalog(): McpExtensionToolDescriptor[] {
+  return [
+    {
+      pluginId: BUILTIN_MUSE_PLUGIN_ID,
+      pluginName: 'Muse',
+      capability: 'muse.story',
+      method: 'BUILTIN',
+      path: 'muse.story',
+      mcpDescription: 'Story Muse for narrative ideation and script-focused creative guidance.',
+      mcpInputSchema: {
+        type: 'object',
+        required: ['prompt'],
+        properties: {
+          prompt: { type: 'string' },
+          projectId: { type: 'string' },
+          sceneId: { type: 'string' },
+        },
+      },
+    },
+    {
+      pluginId: BUILTIN_MUSE_PLUGIN_ID,
+      pluginName: 'Muse',
+      capability: 'muse.visual',
+      method: 'BUILTIN',
+      path: 'muse.visual',
+      mcpDescription: 'Visual Muse for shot design, composition, and visual style direction.',
+      mcpInputSchema: {
+        type: 'object',
+        required: ['prompt'],
+        properties: {
+          prompt: { type: 'string' },
+          projectId: { type: 'string' },
+          sceneId: { type: 'string' },
+        },
+      },
+    },
+    {
+      pluginId: BUILTIN_MUSE_PLUGIN_ID,
+      pluginName: 'Muse',
+      capability: 'muse.motion',
+      method: 'BUILTIN',
+      path: 'muse.motion',
+      mcpDescription: 'Motion Muse for camera movement, pacing, and motion direction guidance.',
+      mcpInputSchema: {
+        type: 'object',
+        required: ['prompt'],
+        properties: {
+          prompt: { type: 'string' },
+          projectId: { type: 'string' },
+          sceneId: { type: 'string' },
+        },
+      },
+    },
+  ];
+}
+
+function truncateSchemaForLlm(schema: unknown): unknown {
+  if (schema === undefined) return undefined;
+  try {
+    const s = JSON.stringify(schema);
+    if (s.length <= MAX_SCHEMA_JSON_CHARS) return schema;
+    return {
+      _note: 'Schema truncated for prompt size',
+      preview: `${s.slice(0, MAX_SCHEMA_JSON_CHARS)}…`,
+    };
+  } catch {
+    return { _note: 'Schema not serializable' };
+  }
+}
 
 type OrchestratorPlan = {
   reply?: string;
@@ -32,8 +103,16 @@ type OrchestratorPlan = {
 
 export async function orchestrateMcpExtensionsChat(params: {
   messages: McpChatMessage[];
+  /** Structured attachments for the latest user turn (same order as composer). */
+  attachments?: McpAttachmentPayload[];
+  sessionContext?: {
+    projectId?: string;
+    sceneId?: string;
+    sceneTitle?: string;
+    stage?: string;
+  };
 }): Promise<McpChatResponse> {
-  const { messages } = params;
+  const { messages, attachments, sessionContext } = params;
   if (messages.length === 0) {
     return { assistantText: 'Send a message to start.', toolCalls: [] };
   }
@@ -46,14 +125,24 @@ export async function orchestrateMcpExtensionsChat(params: {
   const latestUser = messages[lastUserIdx]!.content;
   const history = messages.slice(0, lastUserIdx);
 
-  const [settings, catalog] = await Promise.all([getLLMSettings(), listMcpExtensionToolsForLlm()]);
-  const catalogJson = JSON.stringify(catalog, null, 2);
+  const [settings, mcpCatalog] = await Promise.all([
+    getLLMSettings(),
+    listMcpExtensionToolsForOrchestration(),
+  ]);
+  const catalog = [...builtInMuseCatalog(), ...mcpCatalog];
+  const catalogForPrompt = catalog.map((c) => ({
+    ...c,
+    mcpInputSchema: truncateSchemaForLlm(c.mcpInputSchema),
+  }));
+  const catalogJson = JSON.stringify(catalogForPrompt, null, 2);
 
   const rawJson = await completeJsonOrchestration({
     settings,
     catalogJson,
     history,
     latestUserMessage: latestUser,
+    sessionContext,
+    attachments,
   });
 
   let plan: OrchestratorPlan;
@@ -66,7 +155,7 @@ export async function orchestrateMcpExtensionsChat(params: {
     };
   }
 
-  let assistantText = typeof plan.reply === 'string' ? plan.reply : '';
+  const assistantText = typeof plan.reply === 'string' ? plan.reply : '';
 
   if (!plan.tool || plan.tool === null) {
     return {
@@ -99,7 +188,10 @@ export async function orchestrateMcpExtensionsChat(params: {
     };
   }
 
-  const policy = await getMcpHookMcpPolicy(target.pluginId, capability);
+  const policy =
+    target.method === 'BUILTIN'
+      ? 'auto'
+      : await getMcpHookMcpPolicy(target.pluginId, capability);
   if (policy === 'ask') {
     return {
       assistantText:
@@ -120,5 +212,7 @@ export async function orchestrateMcpExtensionsChat(params: {
     pluginId: target.pluginId,
     input,
     latestUserMessage: latestUser,
+    attachments,
+    sessionContext,
   });
 }

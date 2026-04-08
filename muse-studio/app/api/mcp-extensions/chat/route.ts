@@ -3,7 +3,7 @@ import { appendMcpExtensionsChatTurn } from '@/lib/actions/mcpExtensionsChat';
 import { listMcpExtensionToolsForLlm } from '@/lib/actions/plugins';
 import { executeMcpToolPlan, resolveToolTarget } from '@/lib/mcp-extensions/executeMcpToolPlan';
 import { orchestrateMcpExtensionsChat } from '@/lib/mcp-extensions/orchestrateMcpChat';
-import type { McpChatMessage } from '@/lib/mcp-extensions/mcpChatTypes';
+import type { McpAttachmentPayload, McpChatMessage } from '@/lib/mcp-extensions/mcpChatTypes';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,23 +31,61 @@ function findLastUser(messages: McpChatMessage[]): McpChatMessage | undefined {
   return undefined;
 }
 
+function parseAttachments(raw: unknown): McpAttachmentPayload[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const out: McpAttachmentPayload[] = [];
+  for (const a of raw) {
+    if (!a || typeof a !== 'object') continue;
+    const o = a as Record<string, unknown>;
+    const relPath = typeof o.relPath === 'string' ? o.relPath.trim() : '';
+    const kind = o.kind;
+    if (!relPath || (kind !== 'image' && kind !== 'video' && kind !== 'text')) continue;
+    out.push({
+      relPath,
+      kind,
+      name: typeof o.name === 'string' ? o.name : undefined,
+      mimeType: typeof o.mimeType === 'string' ? o.mimeType : undefined,
+      size: typeof o.size === 'number' ? o.size : undefined,
+      previewUrl: typeof o.previewUrl === 'string' ? o.previewUrl : undefined,
+      target: o.target === 'session' || o.target === 'project' ? o.target : undefined,
+      projectId: typeof o.projectId === 'string' ? o.projectId : undefined,
+      source: o.source === 'upload' || o.source === 'library' ? o.source : undefined,
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 export async function POST(req: NextRequest) {
   let lastUser: McpChatMessage | undefined;
   try {
     const body = (await req.json()) as {
+      sessionId?: string;
+      sessionContext?: {
+        projectId?: string;
+        sceneId?: string;
+        sceneTitle?: string;
+        stage?: string;
+      };
       messages?: unknown;
+      attachments?: unknown;
       executeTool?: {
         capability: string;
         pluginId?: string;
         input?: unknown;
         note?: string;
+        attachments?: unknown;
       };
       approvePending?: {
         capability: string;
         pluginId: string;
         input?: unknown;
+        latestUserMessage?: string;
+        attachments?: unknown;
       };
     };
+
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+    const sessionContext = body.sessionContext;
 
     if (body.executeTool && typeof body.executeTool.capability === 'string') {
       const catalog = await listMcpExtensionToolsForLlm();
@@ -67,6 +105,8 @@ export async function POST(req: NextRequest) {
         pluginId: resolved.pluginId,
         input: body.executeTool.input,
         latestUserMessage: typeof body.executeTool.note === 'string' ? body.executeTool.note : undefined,
+        attachments: parseAttachments(body.executeTool.attachments),
+        sessionContext,
       });
       const note = body.executeTool.note?.trim();
       const userLine =
@@ -75,6 +115,7 @@ export async function POST(req: NextRequest) {
           : `Run MCP tool: ${body.executeTool.capability}`;
       try {
         await appendMcpExtensionsChatTurn({
+          sessionId,
           userContent: userLine,
           assistantContent: result.assistantText ?? '',
           toolCalls: result.toolCalls ?? [],
@@ -93,9 +134,11 @@ export async function POST(req: NextRequest) {
         pluginId: body.approvePending.pluginId,
         input: body.approvePending.input,
         latestUserMessage: undefined,
+        sessionContext,
       });
       try {
         await appendMcpExtensionsChatTurn({
+          sessionId,
           userContent: lastUser?.content ?? 'Confirmed MCP tool execution',
           assistantContent: result.assistantText ?? '',
           toolCalls: result.toolCalls ?? [],
@@ -117,11 +160,16 @@ export async function POST(req: NextRequest) {
     const messages = parseMessages(raw);
     lastUser = findLastUser(messages);
 
-    const result = await orchestrateMcpExtensionsChat({ messages });
+    const result = await orchestrateMcpExtensionsChat({
+      messages,
+      attachments: parseAttachments(body.attachments),
+      sessionContext,
+    });
 
     if (lastUser) {
       try {
         await appendMcpExtensionsChatTurn({
+          sessionId,
           userContent: lastUser.content,
           assistantContent: result.assistantText ?? '',
           toolCalls: result.toolCalls ?? [],
@@ -137,6 +185,7 @@ export async function POST(req: NextRequest) {
     if (lastUser) {
       try {
         await appendMcpExtensionsChatTurn({
+          sessionId,
           userContent: lastUser.content,
           assistantContent: `**Error:** ${errMsg}`,
           toolCalls: [],

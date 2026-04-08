@@ -1,5 +1,4 @@
-import { AskMusePage } from '@/components/muse/AskMusePage';
-import { getProjects } from '@/lib/actions/projects';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,24 +8,11 @@ interface AskMusePageRouteProps {
 
 export default async function AskMuseRoute({ searchParams }: AskMusePageRouteProps) {
   const params = await searchParams;
-  const hasContext =
-    params.sceneId != null || params.sceneTitle != null || params.stage != null;
-
-  const initialContext = hasContext
-    ? {
-        sceneId: params.sceneId,
-        sceneTitle: params.sceneTitle,
-        stage: params.stage,
-      }
-    : undefined;
-
-  const projects = await getProjects();
-
-  return (
-    <AskMusePage
-      initialContext={initialContext}
-      projectId={params.projectId ?? undefined}
-      projects={projects.map((p) => ({ id: p.id, title: p.title }))}
-    />
-  );
+  const qp = new URLSearchParams();
+  if (params.projectId) qp.set('projectId', params.projectId);
+  if (params.sceneId) qp.set('sceneId', params.sceneId);
+  if (params.sceneTitle) qp.set('sceneTitle', params.sceneTitle);
+  if (params.stage) qp.set('stage', params.stage);
+  const url = qp.toString() ? `/mcp-extensions?${qp.toString()}` : '/mcp-extensions';
+  redirect(url);
 }

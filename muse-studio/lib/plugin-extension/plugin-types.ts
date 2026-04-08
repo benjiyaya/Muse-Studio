@@ -2,7 +2,7 @@
 export const HOST_MUSE_API_VERSION = '1';
 
 // MVP: keep host version conservative; Phase 3 can switch to semver/real package version.
-export const HOST_MUSE_VERSION = '1.5.2';
+export const HOST_MUSE_VERSION = '1.5.5';
 
 export interface PluginSummary {
   id: string;

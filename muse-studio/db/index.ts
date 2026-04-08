@@ -198,10 +198,22 @@ function applySchema(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_muse_chat_project_muse_created
       ON muse_chat_messages (project_id, muse_agent, created_at);
 
+    -- Extensions MCP console sessions (/mcp-extensions)
+    CREATE TABLE IF NOT EXISTS mcp_extensions_chat_sessions (
+      id          TEXT PRIMARY KEY,
+      title       TEXT NOT NULL,
+      pinned      INTEGER NOT NULL DEFAULT 0,
+      project_id  TEXT REFERENCES projects(id) ON DELETE SET NULL,
+      scene_id    TEXT REFERENCES scenes(id) ON DELETE SET NULL,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    );
+
     -- Extensions MCP console (/mcp-extensions): one row per user or assistant message
     CREATE TABLE IF NOT EXISTS mcp_extensions_chat_messages (
       sort_key    INTEGER PRIMARY KEY AUTOINCREMENT,
       id          TEXT NOT NULL UNIQUE,
+      session_id  TEXT NOT NULL REFERENCES mcp_extensions_chat_sessions(id) ON DELETE CASCADE,
       role        TEXT NOT NULL,
       content     TEXT NOT NULL,
       tool_calls_json TEXT,
@@ -209,6 +221,8 @@ function applySchema(database: Database.Database): void {
     );
 
     CREATE INDEX IF NOT EXISTS idx_mcp_ext_chat_sort ON mcp_extensions_chat_messages (sort_key);
+    CREATE INDEX IF NOT EXISTS idx_mcp_ext_chat_session_sort
+      ON mcp_extensions_chat_messages (session_id, sort_key);
 
     -- Character sheets: per-project characters and their reference images
     CREATE TABLE IF NOT EXISTS characters (
@@ -260,6 +274,41 @@ function applySchema(database: Database.Database): void {
   } catch {
     /* column already exists */
   }
+  // MCP extensions multi-session migration
+  const defaultSessionId = 'default';
+  const now = new Date().toISOString();
+  try {
+    database.exec(`ALTER TABLE mcp_extensions_chat_messages ADD COLUMN session_id TEXT`);
+  } catch {
+    /* column already exists */
+  }
+  try {
+    database.exec(`ALTER TABLE mcp_extensions_chat_sessions ADD COLUMN project_id TEXT`);
+  } catch {
+    /* column already exists */
+  }
+  try {
+    database.exec(`ALTER TABLE mcp_extensions_chat_sessions ADD COLUMN scene_id TEXT`);
+  } catch {
+    /* column already exists */
+  }
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO mcp_extensions_chat_sessions (id, title, pinned, created_at, updated_at)
+       VALUES (@id, @title, 1, @now, @now)`,
+    )
+    .run({ id: defaultSessionId, title: 'General', now });
+  database
+    .prepare(
+      `UPDATE mcp_extensions_chat_messages
+       SET session_id = @sid
+       WHERE session_id IS NULL OR TRIM(session_id) = ''`,
+    )
+    .run({ sid: defaultSessionId });
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS idx_mcp_ext_chat_session_sort
+      ON mcp_extensions_chat_messages (session_id, sort_key)`,
+  );
 }
 
 function seedIfEmpty(database: Database.Database): void {

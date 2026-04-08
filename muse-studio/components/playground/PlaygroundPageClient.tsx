@@ -30,6 +30,7 @@ import {
 import { getProjectById } from '@/lib/actions/projects';
 import { listCharacters } from '@/lib/actions/characters';
 import {
+  listProjectMediaLibrary,
   listPlaygroundGlobalLibrary,
   promotePlaygroundAssetToKeyframe,
   promotePlaygroundAssetToCharacterImage,
@@ -132,6 +133,9 @@ export function PlaygroundPageClient({ workflows, projects }: PlaygroundPageClie
   } | null>(null);
   const [playgroundLibItems, setPlaygroundLibItems] = useState<MediaLibraryItem[]>([]);
   const [playgroundLibLoading, setPlaygroundLibLoading] = useState(false);
+  const [projectLibItems, setProjectLibItems] = useState<MediaLibraryItem[]>([]);
+  const [projectLibLoading, setProjectLibLoading] = useState(false);
+  const [libraryTab, setLibraryTab] = useState<'media' | 'project'>('media');
 
   const firstErrorRef = useRef<HTMLDivElement | null>(null);
 
@@ -246,11 +250,16 @@ export function PlaygroundPageClient({ workflows, projects }: PlaygroundPageClie
   useEffect(() => {
     if (!playgroundLibPicker) {
       setPlaygroundLibItems([]);
+      setProjectLibItems([]);
+      setLibraryTab('media');
       return;
     }
     let cancelled = false;
     setPlaygroundLibLoading(true);
     setPlaygroundLibItems([]);
+    setProjectLibLoading(Boolean(chatProjectId));
+    setProjectLibItems([]);
+    setLibraryTab('media');
     listPlaygroundGlobalLibrary()
       .then((all) => {
         if (cancelled) return;
@@ -262,10 +271,25 @@ export function PlaygroundPageClient({ workflows, projects }: PlaygroundPageClie
       .finally(() => {
         if (!cancelled) setPlaygroundLibLoading(false);
       });
+
+    if (chatProjectId) {
+      listProjectMediaLibrary(chatProjectId)
+        .then((all) => {
+          if (cancelled) return;
+          setProjectLibItems(all.filter((i) => i.kind === 'image'));
+        })
+        .catch(() => {
+          if (!cancelled) setProjectLibItems([]);
+        })
+        .finally(() => {
+          if (!cancelled) setProjectLibLoading(false);
+        });
+    }
+
     return () => {
       cancelled = true;
     };
-  }, [playgroundLibPicker]);
+  }, [playgroundLibPicker, chatProjectId]);
 
   function applyPlaygroundLibrarySelection(relPath: string) {
     const pick = playgroundLibPicker;
@@ -660,7 +684,7 @@ export function PlaygroundPageClient({ workflows, projects }: PlaygroundPageClie
                                 }
                               >
                                 <Images className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                                Choose from playground library…
+                                Choose from media library…
                               </Button>
                             </div>
                           )}
@@ -726,7 +750,7 @@ export function PlaygroundPageClient({ workflows, projects }: PlaygroundPageClie
                                 }
                               >
                                 <Images className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                                Choose from playground library…
+                                Choose from media library…
                               </Button>
                             </div>
                           )}
@@ -1037,25 +1061,66 @@ export function PlaygroundPageClient({ workflows, projects }: PlaygroundPageClie
       >
         <DialogContent className="flex max-h-[85vh] max-w-lg flex-col border-white/10 bg-[oklch(0.13_0.012_264)] sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="text-base">Playground library</DialogTitle>
+            <DialogTitle className="text-base">Media Library</DialogTitle>
           </DialogHeader>
+          {chatProjectId ? (
+            <div className="inline-flex rounded-lg border border-white/10 bg-white/5 p-0.5">
+              <button
+                type="button"
+                onClick={() => setLibraryTab('media')}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  libraryTab === 'media'
+                    ? 'bg-violet-600 text-white'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Media Library
+              </button>
+              <button
+                type="button"
+                onClick={() => setLibraryTab('project')}
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
+                  libraryTab === 'project'
+                    ? 'bg-violet-600 text-white'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                Project Library
+              </button>
+            </div>
+          ) : null}
+
           <p className="text-xs text-muted-foreground">
-            Images generated in the Media playground under{' '}
-            <code className="rounded bg-white/10 px-1">drafts/playground/</code> (all folders, not filtered by
-            project).
+            {libraryTab === 'project' && chatProjectId ? (
+              <>
+                Images from the selected project only (
+                <code className="rounded bg-white/10 px-1">drafts/playground/{chatProjectId}/</code> and{' '}
+                <code className="rounded bg-white/10 px-1">drafts/{chatProjectId}/library/</code>).
+              </>
+            ) : (
+              <>
+                Images generated in Media Playground under{' '}
+                <code className="rounded bg-white/10 px-1">drafts/playground/</code> (all folders, not filtered by
+                project).
+              </>
+            )}
           </p>
-          {playgroundLibLoading ? (
+
+          {(libraryTab === 'project' && chatProjectId ? projectLibLoading : playgroundLibLoading) ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
             </div>
-          ) : playgroundLibItems.length === 0 ? (
+          ) : (libraryTab === 'project' && chatProjectId ? projectLibItems : playgroundLibItems).length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No playground images yet. Run a generation here first, or check that files exist under
-              outputs/drafts/playground/.
+              {libraryTab === 'project' && chatProjectId
+                ? 'No project library images yet for the selected project.'
+                : 'No media library images yet. Run a generation here first, or check files under outputs/drafts/playground/.'}
             </p>
           ) : (
             <div className="grid max-h-[min(50vh,420px)] grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-5">
-              {playgroundLibItems.map((item) => (
+              {(libraryTab === 'project' && chatProjectId ? projectLibItems : playgroundLibItems).map((item) => (
                 <button
                   key={item.path}
                   type="button"

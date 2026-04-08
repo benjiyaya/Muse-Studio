@@ -1,6 +1,6 @@
 {
   "name": "mcp-muse-studio",
-  "version": "1.5.2",
+  "version": "1.5.5",
   "private": true,
   "type": "module",
   "description": "MCP adapter exposing Muse Studio capabilities (projects, story, scenes, editor, timeline).",

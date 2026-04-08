@@ -28,12 +28,12 @@ import { useLLMSettings } from '@/hooks/useSettings';
 import { createKeyframe, updateScene, updateSceneStatus } from '@/lib/actions/scenes';
 import type { Scene, KanbanStatus } from '@/lib/types';
 
-type SceneMuseMode = 'rewrite' | 'image_prompt';
+type SceneMuseMode = 'rewrite_llm' | 'rewrite_manual' | 'image_prompt';
 
 const MODE_CONFIG = {
-  rewrite: {
-    id: 'rewrite' as const,
-    label: 'Rewrite Current Scene',
+  rewrite_llm: {
+    id: 'rewrite_llm' as const,
+    label: 'Rewrite Current Scene (LLM)',
     Icon: Feather,
     bgClass: 'bg-violet-500/10',
     textClass: 'text-violet-300',
@@ -46,6 +46,21 @@ const MODE_CONFIG = {
     taskId: 'rewrite_scene',
     btnLabel: 'Rewrite Scene',
     hint: 'Story Muse will rewrite the full scene script based on your instructions.',
+  },
+  rewrite_manual: {
+    id: 'rewrite_manual' as const,
+    label: 'Edit Current Scene (Manual)',
+    Icon: Feather,
+    bgClass: 'bg-emerald-500/10',
+    textClass: 'text-emerald-300',
+    borderClass: 'border-emerald-500/25',
+    activeTabBg: 'bg-emerald-500/15',
+    activeTabBorder: 'border-emerald-500/40',
+    activeTabText: 'text-emerald-300',
+    placeholder: 'Directly edit heading/description/dialogue below.',
+    taskId: 'rewrite_scene',
+    btnLabel: 'Save Manual Edit',
+    hint: 'Manual mode lets you directly edit and save the current scene without LLM generation.',
   },
   image_prompt: {
     id: 'image_prompt' as const,
@@ -115,8 +130,11 @@ export function SceneMuseDialog({
   onKeyframeSaved,
 }: SceneMuseDialogProps) {
   const router = useRouter();
-  const [mode, setMode] = useState<SceneMuseMode>('rewrite');
+  const [mode, setMode] = useState<SceneMuseMode>('rewrite_llm');
   const [input, setInput] = useState('');
+  const [manualHeading, setManualHeading] = useState('');
+  const [manualDescription, setManualDescription] = useState('');
+  const [manualDialogue, setManualDialogue] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -149,13 +167,21 @@ export function SceneMuseDialog({
     storyMuse.cancel();
     setMode(next);
     setInput('');
+    if (scene && next === 'rewrite_manual') {
+      setManualHeading(scene.heading ?? '');
+      setManualDescription(scene.description ?? '');
+      setManualDialogue(scene.dialogue ?? '');
+    }
     resetSaveState();
   }
 
   function handleClose() {
     storyMuse.cancel();
     setInput('');
-    setMode('rewrite');
+    setMode('rewrite_llm');
+    setManualHeading('');
+    setManualDescription('');
+    setManualDialogue('');
     setShowPreview(false);
     setCopied(false);
     resetSaveState();
@@ -165,7 +191,7 @@ export function SceneMuseDialog({
   function buildUserMessage(): string {
     if (!scene) return input;
 
-    if (mode === 'rewrite') {
+    if (mode === 'rewrite_llm') {
       const parts = [
         `Scene #${String(scene.sceneNumber).padStart(2, '0')}: ${scene.title}`,
         scene.heading,
@@ -189,6 +215,7 @@ export function SceneMuseDialog({
 
   async function handleGenerate() {
     if (!scene || isGenerating) return;
+    if (mode === 'rewrite_manual') return;
     resetSaveState();
 
     await storyMuse.generate({
@@ -205,6 +232,34 @@ export function SceneMuseDialog({
       openrouterBaseUrl: llmSettings.openrouterBaseUrl,
       maxTokens: mode === 'image_prompt' ? 512 : 2048,
       temperature: mode === 'image_prompt' ? 0.85 : 0.75,
+    });
+  }
+
+  function handleSaveManualRewrite() {
+    if (!scene || isSavingRewrite || rewriteSaved) return;
+    setRewriteError(null);
+
+    const nextHeading = manualHeading.trim() || scene.heading;
+    const nextDescription = manualDescription.trim();
+    const nextDialogue = manualDialogue.trim();
+    if (!nextDescription) {
+      setRewriteError('Description cannot be empty.');
+      return;
+    }
+
+    startRewriteTransition(async () => {
+      try {
+        await updateScene(scene.id, {
+          heading: nextHeading,
+          description: nextDescription,
+          dialogue: nextDialogue || undefined,
+        });
+        setRewriteSaved(true);
+        onSceneRewritten?.(scene.id, { heading: nextHeading, description: nextDescription });
+        router.refresh();
+      } catch (err) {
+        setRewriteError(err instanceof Error ? err.message : 'Failed to save scene.');
+      }
     });
   }
 
@@ -270,7 +325,8 @@ export function SceneMuseDialog({
   const hasResponse = Boolean(response);
   const showResponseArea = hasResponse || (isGenerating && !isLoadingModel);
   const isImageMode = mode === 'image_prompt';
-  const isRewriteMode = mode === 'rewrite';
+  const isRewriteLlmMode = mode === 'rewrite_llm';
+  const isManualRewriteMode = mode === 'rewrite_manual';
 
   return (
     <div
@@ -281,7 +337,7 @@ export function SceneMuseDialog({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm pointer-events-auto" aria-hidden />
 
       {/* Dialog panel */}
-      <div className="relative z-10 w-full max-w-[520px] rounded-2xl border border-white/12 bg-[oklch(0.13_0.012_264)] shadow-2xl shadow-black/60 flex flex-col max-h-[88vh]">
+      <div className="relative z-10 w-full max-w-[1200px] rounded-2xl border border-white/12 bg-[oklch(0.13_0.012_264)] shadow-2xl shadow-black/60 flex flex-col max-h-[88vh]">
 
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/8 shrink-0">
@@ -377,6 +433,11 @@ export function SceneMuseDialog({
           )}
 
           {/* Instruction / style input */}
+          {isRewriteLlmMode && (
+            <p className="text-sm font-semibold text-foreground">
+              Rewrite Instructions (Tell Muse AI what changes you want to make.)
+            </p>
+          )}
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -384,10 +445,41 @@ export function SceneMuseDialog({
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleGenerate();
             }}
             placeholder={cfg.placeholder}
-            rows={mode === 'rewrite' ? 3 : 2}
-            disabled={isGenerating}
+            rows={mode === 'rewrite_llm' ? 3 : 2}
+            disabled={isGenerating || isManualRewriteMode}
             className="resize-none bg-white/5 border-white/10 focus:border-violet-500/40 placeholder:text-muted-foreground/35 text-sm disabled:opacity-50"
           />
+
+          {isManualRewriteMode && (
+            <div className="space-y-2 rounded-lg border border-white/8 bg-white/3 p-3">
+              <label className="text-[11px] font-medium text-muted-foreground">Scene Heading</label>
+              <Textarea
+                value={manualHeading}
+                onChange={(e) => setManualHeading(e.target.value)}
+                rows={1}
+                className="resize-none bg-white/5 border-white/10 text-sm"
+                placeholder="INT. LOCATION - TIME"
+              />
+
+              <label className="text-[11px] font-medium text-muted-foreground">Description</label>
+              <Textarea
+                value={manualDescription}
+                onChange={(e) => setManualDescription(e.target.value)}
+                rows={6}
+                className="resize-none bg-white/5 border-white/10 text-sm"
+                placeholder="Write the scene description..."
+              />
+
+              <label className="text-[11px] font-medium text-muted-foreground">Dialogue (optional)</label>
+              <Textarea
+                value={manualDialogue}
+                onChange={(e) => setManualDialogue(e.target.value)}
+                rows={4}
+                className="resize-none bg-white/5 border-white/10 text-sm"
+                placeholder="Write scene dialogue..."
+              />
+            </div>
+          )}
 
           {/* Model loading */}
           {isLoadingModel && (
@@ -478,7 +570,9 @@ export function SceneMuseDialog({
 
         {/* ── Footer ─────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-3 border-t border-white/8 px-5 py-3 shrink-0">
-          <p className="text-[10px] text-muted-foreground/40">⌘↵ to generate</p>
+          <p className="text-[10px] text-muted-foreground/40">
+            {isManualRewriteMode ? 'Manual edit mode' : '⌘↵ to generate'}
+          </p>
 
           <div className="flex items-center gap-2">
 
@@ -514,7 +608,7 @@ export function SceneMuseDialog({
             {/* ── PRIMARY SAVE ACTION (emerald) ── */}
 
             {/* Rewrite mode: Save Changes */}
-            {isRewriteMode && hasResponse && !isGenerating && (
+            {isRewriteLlmMode && hasResponse && !isGenerating && (
               <Button
                 size="sm"
                 onClick={handleSaveRewrite}
@@ -532,6 +626,29 @@ export function SceneMuseDialog({
                   <><Check className="h-3.5 w-3.5" />Saved</>
                 ) : (
                   <><Save className="h-3.5 w-3.5" />Save Changes</>
+                )}
+              </Button>
+            )}
+
+            {/* Manual rewrite mode: Save Changes */}
+            {isManualRewriteMode && (
+              <Button
+                size="sm"
+                onClick={handleSaveManualRewrite}
+                disabled={isSavingRewrite || rewriteSaved}
+                className={cn(
+                  'h-8 text-xs gap-1.5 font-medium',
+                  rewriteSaved
+                    ? 'bg-emerald-700/40 text-emerald-300 border border-emerald-500/30 cursor-default'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white',
+                )}
+              >
+                {isSavingRewrite ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" />Saving…</>
+                ) : rewriteSaved ? (
+                  <><Check className="h-3.5 w-3.5" />Saved</>
+                ) : (
+                  <><Save className="h-3.5 w-3.5" />Save Manual Edit</>
                 )}
               </Button>
             )}
@@ -560,7 +677,7 @@ export function SceneMuseDialog({
             )}
 
             {/* ── REGENERATE (ghost with border — clearly secondary) ── */}
-            {!isGenerating && (
+            {!isGenerating && !isManualRewriteMode && (
               <Button
                 size="sm"
                 variant="ghost"

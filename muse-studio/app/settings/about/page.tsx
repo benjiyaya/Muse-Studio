@@ -15,7 +15,7 @@ export default function AboutSettingsPage() {
       <div className="rounded-2xl border border-white/8 bg-[oklch(0.13_0.012_264)] p-6 space-y-3">
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Version</span>
-          <span className="font-mono">1.5.2</span>
+          <span className="font-mono">1.5.5</span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Frontend</span>

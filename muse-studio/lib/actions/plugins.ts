@@ -14,6 +14,7 @@ import {
   isAuxiliaryMcpTool,
   mcpCallToolJson,
   mcpListToolNames,
+  mcpListToolsMeta,
   resolveMcpEndpointUrl,
   withMcpClient,
 } from '@/lib/mcp-extensions/mcpStreamableClient';
@@ -108,6 +109,10 @@ export interface McpExtensionToolDescriptor {
   capability: string;
   method: string;
   path: string;
+  /** MCP listTools: human description for this tool name (`path`). */
+  mcpDescription?: string;
+  /** MCP listTools: JSON Schema for tool arguments. */
+  mcpInputSchema?: unknown;
 }
 
 export async function installMcpExtensionsFromJson(raw: string): Promise<{
@@ -135,29 +140,42 @@ export async function installMcpExtensionsFromJson(raw: string): Promise<{
   return { installed, failed, warnings };
 }
 
-/** All hooks exposed by enabled extensions — used by Extensions console LLM tool routing. */
-export async function listMcpExtensionToolsForLlm(): Promise<McpExtensionToolDescriptor[]> {
-  const rows = db
+type McpExtensionToolQueryRow = {
+  plugin_id: string;
+  name: string;
+  capability: string;
+  method: string;
+  path: string;
+  base_url: string | null;
+  auth_type: string | null;
+  auth_ref: string | null;
+};
+
+function queryMcpExtensionToolRows(): McpExtensionToolQueryRow[] {
+  return db
     .prepare<
       [],
-      {
-        plugin_id: string;
-        name: string;
-        capability: string;
-        method: string;
-        path: string;
-      }
+      McpExtensionToolQueryRow
     >(
       `
-      SELECT p.id AS plugin_id, p.name, ph.capability, ph.method, ph.path
+      SELECT p.id AS plugin_id, p.name, ph.capability, ph.method, ph.path,
+             pe.base_url AS base_url, pe.auth_type AS auth_type, pe.auth_ref AS auth_ref
       FROM plugin_hooks ph
       INNER JOIN plugins p ON p.id = ph.plugin_id
+      LEFT JOIN plugin_endpoints pe ON pe.plugin_id = p.id
       WHERE ph.enabled = 1 AND p.enabled = 1
       ORDER BY p.name ASC, ph.capability ASC
       `,
     )
     .all();
+}
 
+/**
+ * Enabled extension hooks from SQLite only (no MCP network I/O).
+ * Use for SSR, tool routing, and UI — avoids connecting to MCP servers on every page load.
+ */
+export async function listMcpExtensionToolsForLlm(): Promise<McpExtensionToolDescriptor[]> {
+  const rows = queryMcpExtensionToolRows();
   return rows.map((r) => ({
     pluginId: r.plugin_id,
     pluginName: r.name,
@@ -165,6 +183,67 @@ export async function listMcpExtensionToolsForLlm(): Promise<McpExtensionToolDes
     method: r.method,
     path: r.path,
   }));
+}
+
+/**
+ * Same hooks as {@link listMcpExtensionToolsForLlm} plus MCP `listTools` metadata per tool
+ * (description + inputSchema). Call only when running the Extensions orchestrator LLM.
+ */
+export async function listMcpExtensionToolsForOrchestration(): Promise<McpExtensionToolDescriptor[]> {
+  const rows = queryMcpExtensionToolRows();
+
+  const metaByPlugin = new Map<
+    string,
+    Map<string, { description?: string; inputSchema?: unknown }>
+  >();
+
+  const mcpEndpoints = new Map<
+    string,
+    { base_url: string; auth_type: string | null; auth_ref: string | null }
+  >();
+  for (const r of rows) {
+    if (r.method === 'MCP' && r.base_url && !mcpEndpoints.has(r.plugin_id)) {
+      mcpEndpoints.set(r.plugin_id, {
+        base_url: r.base_url,
+        auth_type: r.auth_type,
+        auth_ref: r.auth_ref,
+      });
+    }
+  }
+
+  await Promise.all(
+    [...mcpEndpoints.entries()].map(async ([pluginId, ep]) => {
+      try {
+        const authToken =
+          ep.auth_type === 'bearer'
+            ? resolveAuthRef(pluginId, ep.auth_type, ep.auth_ref)
+            : null;
+        const tools = await mcpListToolsMeta(ep.base_url, authToken);
+        const m = new Map<string, { description?: string; inputSchema?: unknown }>();
+        for (const t of tools) {
+          if (!t.name) continue;
+          m.set(t.name, { description: t.description, inputSchema: t.inputSchema });
+        }
+        metaByPlugin.set(pluginId, m);
+      } catch {
+        /* listTools failure: descriptors still work without schemas */
+      }
+    }),
+  );
+
+  return rows.map((r) => {
+    const meta = metaByPlugin.get(r.plugin_id)?.get(r.path);
+    return {
+      pluginId: r.plugin_id,
+      pluginName: r.name,
+      capability: r.capability,
+      method: r.method,
+      path: r.path,
+      ...(r.method === 'MCP' && meta
+        ? { mcpDescription: meta.description, mcpInputSchema: meta.inputSchema }
+        : {}),
+    };
+  });
 }
 
 async function fetchWithTimeout(input: string, init: RequestInit & { timeoutMs: number }): Promise<Response> {

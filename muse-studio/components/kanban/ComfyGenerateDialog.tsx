@@ -78,6 +78,9 @@ export function ComfyGenerateDialog({
   const [copiedPrompt, setCopiedPrompt] = useState(false);
 
   const firstErrorRef = useRef<HTMLDivElement | null>(null);
+  /** Parent passes an inline handler; keep latest without re-running the load-workflow effect. */
+  const onWorkflowInvalidRef = useRef(onWorkflowInvalid);
+  onWorkflowInvalidRef.current = onWorkflowInvalid;
 
   const { start: startPolling, stop: stopPolling } = useSingleJobPoll({
     intervalMs: JOB_POLL_INTERVAL_MS.fast,
@@ -125,9 +128,9 @@ export function ComfyGenerateDialog({
           const msg: string = data?.error ?? 'Failed to load workflow.';
           if (
             (msg === 'Workflow not found' || msg === 'Stored workflow JSON is invalid.') &&
-            onWorkflowInvalid
+            onWorkflowInvalidRef.current
           ) {
-            onWorkflowInvalid(scene.id, kind);
+            onWorkflowInvalidRef.current(scene.id, kind);
             return;
           }
           throw new Error(msg);
@@ -141,8 +144,8 @@ export function ComfyGenerateDialog({
           json = JSON.parse(wf.json);
         } catch {
           const msg = 'Stored workflow JSON is invalid.';
-          if (onWorkflowInvalid) {
-            onWorkflowInvalid(scene.id, kind);
+          if (onWorkflowInvalidRef.current) {
+            onWorkflowInvalidRef.current(scene.id, kind);
             return;
           }
           setError(msg);
@@ -202,7 +205,9 @@ export function ComfyGenerateDialog({
         setPhase('error');
       }
     })();
-  }, [isOpen, activeWorkflowId, scene, kind, onWorkflowInvalid]);
+    // Intentionally omit `scene` / `onWorkflowInvalid` object identity: parent re-renders must not
+    // reset submitting/polling state. Use scene?.id + refs for stability.
+  }, [isOpen, activeWorkflowId, scene?.id, kind]);
 
   // ── Stop job polling when dialog closes ─────────────────────────────────────
 
@@ -426,6 +431,7 @@ export function ComfyGenerateDialog({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground"
           >
@@ -1051,6 +1057,7 @@ export function ComfyGenerateDialog({
 
             {phase === 'result' && kind === 'image' && (
               <Button
+                type="button"
                 size="sm"
                 disabled={isSaving}
                 onClick={handleSaveKeyframe}
@@ -1063,6 +1070,7 @@ export function ComfyGenerateDialog({
 
             {(phase === 'idle' || phase === 'error') && (
               <Button
+                type="button"
                 size="sm"
                 disabled={phase === 'error' && !error?.includes('Network')}
                 onClick={handleGenerate}
@@ -1073,7 +1081,7 @@ export function ComfyGenerateDialog({
             )}
 
             {(phase === 'submitting' || phase === 'polling') && (
-              <Button size="sm" disabled className="bg-violet-600/50 text-white/60">
+              <Button type="button" size="sm" disabled className="bg-violet-600/50 text-white/60">
                 <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                 {phase === 'submitting' ? 'Submitting…' : 'Generating…'}
               </Button>

@@ -49,9 +49,19 @@ export async function withMcpClient<T>(
   try {
     return await fn(client);
   } finally {
-    await client.close().catch(() => {});
+    try {
+      await client.close();
+    } catch {
+      // Streamable HTTP transport often throws AbortError on close; safe to ignore.
+    }
   }
 }
+
+export type McpToolListEntry = {
+  name: string;
+  description?: string;
+  inputSchema?: unknown;
+};
 
 export async function mcpListToolNames(mcpEndpointUrl: string, authBearer?: string | null): Promise<string[]> {
   const headers = authBearer ? { Authorization: `Bearer ${authBearer}` } : undefined;
@@ -60,6 +70,26 @@ export async function mcpListToolNames(mcpEndpointUrl: string, authBearer?: stri
     async (client) => {
       const { tools } = await client.listTools();
       return (tools ?? []).map((t) => t.name).filter(Boolean);
+    },
+    { headers },
+  );
+}
+
+/** Full tool metadata for orchestrator (argument JSON Schema + description). */
+export async function mcpListToolsMeta(
+  mcpEndpointUrl: string,
+  authBearer?: string | null,
+): Promise<McpToolListEntry[]> {
+  const headers = authBearer ? { Authorization: `Bearer ${authBearer}` } : undefined;
+  return withMcpClient(
+    mcpEndpointUrl,
+    async (client) => {
+      const { tools } = await client.listTools();
+      return (tools ?? []).map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema,
+      }));
     },
     { headers },
   );

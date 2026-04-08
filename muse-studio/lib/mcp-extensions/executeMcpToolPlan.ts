@@ -3,6 +3,17 @@ import {
   listMcpExtensionToolsForLlm,
   type McpExtensionToolDescriptor,
 } from '@/lib/actions/plugins';
+import { getProjectById } from '@/lib/actions/projects';
+import { getLLMSettings } from '@/lib/actions/settings';
+import { openRouterOptionalHeaders } from '@/lib/generation/openRouterHeaders';
+import {
+  formatProjectForRag,
+  STORY_GENERATION_SYSTEM_PROMPTS,
+  streamStoryLMStudio,
+  streamStoryOllama,
+  streamStoryOpenAICompat,
+  storySseError,
+} from '@/lib/generation/storyGenerationInternals';
 import {
   runPluginImageGeneration,
   runPluginVideoGeneration,
@@ -12,9 +23,131 @@ import type {
   MuseVideoGenerateInput,
 } from '@/lib/plugin-extension/provider-contracts';
 import { extractImageGenParamsFromText } from '@/lib/mcp-extensions/extractImageGenParamsFromText';
-import type { McpChatResponse, McpToolCallLogEntry, McpToolCallPreview } from '@/lib/mcp-extensions/mcpChatTypes';
+import { mergeAttachmentsIntoToolInput } from '@/lib/mcp-extensions/mergeAttachmentInput';
+import type {
+  McpAttachmentPayload,
+  McpChatResponse,
+  McpToolCallLogEntry,
+  McpToolCallPreview,
+} from '@/lib/mcp-extensions/mcpChatTypes';
 
 const MCP_CONSOLE_OUTPUT_DIR = 'drafts/mcp-extensions/global';
+const BUILTIN_MUSE_PLUGIN_ID = 'builtin.muse';
+
+async function collectSseText(res: Response): Promise<string> {
+  if (!res.ok || !res.body) return '';
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let out = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (typeof value === 'string') {
+      // Some SSE implementations emit text chunks directly.
+      buffer += value;
+    } else {
+      buffer += decoder.decode(value, { stream: true });
+    }
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (line.startsWith(':')) continue;
+      if (!line.startsWith('data:')) continue;
+      const json = line.slice(5).trim();
+      if (!json) continue;
+      try {
+        const chunk = JSON.parse(json) as { text?: string; error?: string };
+        if (chunk.error) throw new Error(chunk.error);
+        if (chunk.text) out += chunk.text;
+      } catch {
+        // ignore malformed non-JSON events
+      }
+    }
+  }
+  return out.trim();
+}
+
+async function runBuiltInMuseTool(params: {
+  capability: string;
+  prompt: string;
+  projectId?: string;
+  sceneId?: string;
+}): Promise<string> {
+  const { capability, prompt, projectId, sceneId } = params;
+  const task =
+    capability === 'muse.visual' ? 'visual_query' : capability === 'muse.motion' ? 'motion_query' : 'general_query';
+  const systemPrompt = STORY_GENERATION_SYSTEM_PROMPTS[task] ?? STORY_GENERATION_SYSTEM_PROMPTS.default;
+  const settings = await getLLMSettings();
+  const provider = settings.llmProvider;
+  const context: Record<string, unknown> = {};
+  if (sceneId) context.sceneId = sceneId;
+  if (projectId) {
+    const project = await getProjectById(projectId);
+    if (project) context.project_context = formatProjectForRag(project);
+  }
+  const withContext =
+    Object.keys(context).length > 0
+      ? `Context:\n${Object.entries(context)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join('\n')}\n\nRequest:\n${prompt}`
+      : prompt;
+
+  let res: Response;
+  switch (provider) {
+    case 'ollama':
+      res = await streamStoryOllama({
+        baseUrl: settings.ollamaBaseUrl,
+        model: settings.ollamaModel,
+        systemPrompt,
+        userMessage: withContext,
+      });
+      break;
+    case 'lmstudio':
+      res = await streamStoryLMStudio({
+        baseUrl: settings.lmstudioBaseUrl,
+        model: settings.lmstudioModel || settings.openaiModel || 'gpt-4o-mini',
+        systemPrompt,
+        userMessage: withContext,
+      });
+      break;
+    case 'openai':
+      res = await streamStoryOpenAICompat({
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: process.env.OPENAI_API_KEY ?? '',
+        model: settings.openaiModel,
+        systemPrompt,
+        userMessage: withContext,
+        providerName: 'OpenAI',
+      });
+      break;
+    case 'claude':
+      res = await streamStoryOpenAICompat({
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+        model: settings.claudeModel,
+        systemPrompt,
+        userMessage: withContext,
+        providerName: 'Claude',
+      });
+      break;
+    case 'openrouter':
+      res = await streamStoryOpenAICompat({
+        baseUrl: settings.openrouterBaseUrl,
+        apiKey: process.env.OPENROUTER_API_KEY ?? '',
+        model: settings.openrouterModel,
+        systemPrompt,
+        userMessage: withContext,
+        providerName: 'OpenRouter',
+        extraHeaders: openRouterOptionalHeaders(),
+      });
+      break;
+    default:
+      res = storySseError(`Unsupported LLM provider for Muse built-in tool: ${provider}`);
+      break;
+  }
+  return collectSseText(res);
+}
 
 export function resolveToolTarget(
   catalog: McpExtensionToolDescriptor[],
@@ -64,15 +197,71 @@ function toPreviewUrl(pathOrUrl: string): string {
  */
 export async function executeMcpToolPlan(params: {
   capability: string;
-  pluginId: string;
+  pluginId?: string;
   input?: unknown;
   /** For image.generate, merged with structured fields from this message when present. */
   latestUserMessage?: string;
+  attachments?: McpAttachmentPayload[];
+  sessionContext?: {
+    projectId?: string;
+    sceneId?: string;
+    sceneTitle?: string;
+    stage?: string;
+  };
 }): Promise<McpChatResponse> {
-  const { capability, pluginId, input, latestUserMessage } = params;
+  const { capability, pluginId, input, latestUserMessage, attachments, sessionContext } = params;
+  const toolCalls: McpToolCallLogEntry[] = [];
+
+  if (capability === 'muse.story' || capability === 'muse.visual' || capability === 'muse.motion') {
+    try {
+      const o = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+      const prompt = typeof o.prompt === 'string' && o.prompt.trim() ? o.prompt.trim() : latestUserMessage?.trim() || '';
+      if (!prompt) throw new Error(`Tool input must include a non-empty "prompt" for ${capability}.`);
+      const text = await runBuiltInMuseTool({
+        capability,
+        prompt,
+        projectId:
+          (typeof o.projectId === 'string' ? o.projectId : undefined) ??
+          sessionContext?.projectId,
+        sceneId:
+          (typeof o.sceneId === 'string' ? o.sceneId : undefined) ??
+          sessionContext?.sceneId,
+      });
+      toolCalls.push({
+        capability,
+        pluginId: BUILTIN_MUSE_PLUGIN_ID,
+        pluginName: 'Muse',
+        status: 'ok',
+        previews: text ? [{ kind: 'json', label: text }] : [],
+      });
+      return {
+        assistantText: text || `Executed built-in Muse tool: ${capability}.`,
+        toolCalls,
+      };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toolCalls.push({
+        capability,
+        pluginId: BUILTIN_MUSE_PLUGIN_ID,
+        pluginName: 'Muse',
+        status: 'error',
+        error: msg,
+        previews: [],
+      });
+      return { assistantText: `Error: ${msg}`, toolCalls };
+    }
+  }
+
+  if (!pluginId) {
+    return {
+      assistantText: `Missing pluginId for capability "${capability}".`,
+      toolCalls: [
+        { capability, status: 'error', error: 'Missing pluginId', previews: [] },
+      ],
+    };
+  }
   const catalog = await listMcpExtensionToolsForLlm();
   const target = resolveToolTarget(catalog, capability, pluginId);
-  const toolCalls: McpToolCallLogEntry[] = [];
 
   if (!target) {
     toolCalls.push({
@@ -138,10 +327,14 @@ export async function executeMcpToolPlan(params: {
       return { assistantText, toolCalls };
     }
 
+    const mergedMcp = mergeAttachmentsIntoToolInput(input, attachments, {
+      method: target.method === 'MCP' ? 'MCP' : 'HTTP',
+    });
+
     const call = await callEnabledPluginsForCapability({
       capability,
       pluginId: target.pluginId,
-      input: input ?? {},
+      input: mergedMcp,
     });
 
     if (!call.ok) {

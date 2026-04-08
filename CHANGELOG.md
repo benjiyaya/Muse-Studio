@@ -4,13 +4,15 @@ All notable changes to Muse Studio are documented here. Release titles match Git
 
 ---
 
-## [1.5.2] - 2026-03-31
+## [1.5.5] - 2026-09-04
 
 ### Highlights
 
-- Refresh MCP and plugin extension integration paths in `muse-studio` and `mcp-muse-studio`.
-- Update generation/provider routing and UI flows (draft/refine, kanban/playground, extensions pages).
-- Clean up backend/provider model pipeline footprint and align runtime contracts and schemas.
+- Consolidate Ask Muse into Extensions flow and redirect `/ask-muse` to `/mcp-extensions` with query compatibility.
+- Add built-in Muse orchestration tool execution (`muse.story`, `muse.visual`, `muse.motion`) in the unified executor.
+- Improve session UX (create/switch/rename/delete/pin/search), persist `project_id`/`scene_id` context, and add better empty-session onboarding.
+- Remove manual upload target selector and infer upload destination from chat session context (project or session).
+- Improve reliability with DB/session schema guards, `crypto.randomUUID` fallback path, and strict MCP argument-shape compatibility fixes.
 
 ## [1.5.0] - 2026-03-28
 
